@@ -1,0 +1,18 @@
+linters-settings:
+  gocyclo:
+    max-complexity: 10 # Set max cyclomatic complexity
+  line-length:
+    max-line-length: 100 # Set max line length
+
+linters:
+  enable:
+    - gocyclo # Check for cyclomatic complexity
+    - govet # Run go vet for static analysis
+    - errcheck # Check for unchecked errors
+    - deadcode # Find unused code
+    - gofmt # Check formatting
+    - goimports # Ensure proper import formatting
+    - nolintlint # Enforce nolint comments to have justifications
+
+run:
+  timeout: 5m # Set a timeout for linter execution
