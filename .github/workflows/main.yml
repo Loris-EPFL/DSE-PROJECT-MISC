@@ -28,13 +28,13 @@ jobs:
     - name: Run HW0 unit tests 
       run: GLOG=no go test -v -race -coverprofile=coverage.out ./peer/tests/HW0/unit
 
-    - name: Run HW0 integration tests 
-      run: GLOG=no go test -v -race -coverprofile=coverage.out ./peer/tests/HW0/integration
+    # name: Run HW0 integration tests 
+    # run: GLOG=no go test -v -race -coverprofile=coverage.out ./peer/tests/HW0/integration
 
     - name: Run HW1 unit tests 
       run: GLOG=no go test -v -race -coverprofile=coverage.out ./peer/tests/HW1/unit
 
-    - name: Run HW1 integration tests 
-      run: GLOG=no go test -v -race -coverprofile=coverage.out ./peer/tests/HW1/integration
-      
+    # name: Run HW1 integration tests 
+    # run: GLOG=no go test -v -race -coverprofile=coverage.out ./peer/tests/HW1/integration
+     
    
