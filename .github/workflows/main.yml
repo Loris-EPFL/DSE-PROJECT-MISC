@@ -1,0 +1,40 @@
+name: Go Tests with Coverage
+
+on:
+  pull_request: # Run tests on PRs
+    branches:
+      - main # Target branch for the PR
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    # Step 1: Check out the code
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    # Step 2: Set up Go environment
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.23.1' # Adjust the Go version as needed
+
+    # Step 3: Install dependencies
+    - name: Install dependencies
+      run: go mod tidy
+
+    # Step 4: Run tests and generate coverage
+    - name: Run HW0 unit tests 
+      run: GLOG=no go test -v -race -coverprofile=coverage.out ./peer/tests/HW0/unit
+
+    # name: Run HW0 integration tests 
+    # run: GLOG=no go test -v -race -coverprofile=coverage.out ./peer/tests/HW0/integration
+
+    - name: Run HW1 unit tests 
+      run: GLOG=no go test -v -race -coverprofile=coverage.out ./peer/tests/HW1/unit
+
+    # name: Run HW1 integration tests 
+    # run: GLOG=no go test -v -race -coverprofile=coverage.out ./peer/tests/HW1/integration
+     
+   
