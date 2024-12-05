@@ -764,3 +764,8 @@ func NewSenderSocket(transp transport.Transport, address string) (transport.Clos
 type Terminable interface {
 	Terminate() error
 }
+
+// GetDNSStore returns the DNS store associated with the node.
+func (t *TestNode) GetDNSStore() *peer.SafeMap[string, peer.DNSEntry] {
+	return &t.config.DNSStore
+}

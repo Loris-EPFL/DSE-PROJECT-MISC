@@ -1,6 +1,15 @@
-package impl
+package peer
 
-import "sync"
+import (
+	"sync"
+	"time"
+)
+
+type DNSEntry struct {
+	Domain     string
+	IPAddress  string
+	Expiration time.Time
+}
 
 // SafeMap is a thread-safe map with a generic key type K and value type V.
 // The key type K must be comparable to satisfy the requirements of Go maps.

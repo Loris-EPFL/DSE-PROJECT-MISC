@@ -4,6 +4,7 @@ import (
 	"sync"
 	"time"
 
+	// Import the SafeMap from utils
 	"go.dedis.ch/cs438/peer"
 	"go.dedis.ch/cs438/types"
 )

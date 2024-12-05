@@ -8,6 +8,7 @@ import (
 // DNSReadMessage represents a message to read a DNS entry.
 type DNSReadMessage struct {
 	Domain string
+	TTL    time.Duration
 }
 
 func (m DNSReadMessage) NewEmpty() Message {
@@ -69,4 +70,27 @@ func (m DNSRegisterMessage) String() string {
 
 func (m DNSRegisterMessage) HTML() string {
 	return fmt.Sprintf("<b>DNSRegisterMessage</b>: Domain=%s, IPAddress=%s, Expiration=%s", m.Domain, m.IPAddress, m.Expiration)
+}
+
+// DNSReadReplyMessage represents a reply message for a DNS read request.
+type DNSReadReplyMessage struct {
+	Domain    string
+	IPAddress string
+	TTL       time.Duration
+}
+
+func (m DNSReadReplyMessage) NewEmpty() Message {
+	return &DNSReadReplyMessage{}
+}
+
+func (m DNSReadReplyMessage) Name() string {
+	return "DNSReadReplyMessage"
+}
+
+func (m DNSReadReplyMessage) String() string {
+	return fmt.Sprintf("DNSReadReplyMessage: Domain=%s, IPAddress=%s, TTL=%s", m.Domain, m.IPAddress, m.TTL)
+}
+
+func (m DNSReadReplyMessage) HTML() string {
+	return fmt.Sprintf("<b>DNSReadReplyMessage</b>: Domain=%s, IPAddress=%s, TTL=%s", m.Domain, m.IPAddress, m.TTL)
 }

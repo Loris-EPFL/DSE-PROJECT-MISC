@@ -1,10 +1,11 @@
 package peer
 
 import (
+	"time"
+
 	"go.dedis.ch/cs438/registry"
 	"go.dedis.ch/cs438/storage"
 	"go.dedis.ch/cs438/transport"
-	"time"
 )
 
 // Peer defines the interface of a peer in the Peerster system. It embeds all
@@ -79,6 +80,10 @@ type Configuration struct {
 	// retries to send a prepare when it doesn't get enough promises or accepts.
 	// Default: 5s.
 	PaxosProposerRetry time.Duration
+
+	//DNS Store
+	DNSStore SafeMap[string, DNSEntry] // Add this line to include DNSStore
+
 }
 
 // Backoff describes parameters for a backoff algorithm. The initial time must

@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/rs/zerolog/log"
 	"go.dedis.ch/cs438/transport"
 	"go.dedis.ch/cs438/types"
 	"golang.org/x/xerrors"
@@ -480,16 +481,94 @@ func (n *node) handleSearchReplyMessage(msg types.Message, pkt transport.Packet)
 // Begin New Handlers for DNS messages
 
 func (n *node) handleDNSReadMessage(msg types.Message, pkt transport.Packet) error {
-	// TODO Handle DNS read message
+	// Handle DNS read message
+	DNSReadRequest, ok := msg.(*types.DNSReadMessage)
+	if !ok {
+		log.Error().Msgf("Expected DNSReadMessage, got %T", msg)
+		return xerrors.Errorf("Expected DNSReadMessage, got %T", msg)
+	}
+
+	DNSReadEntry, success := n.dnsStore.Get(DNSReadRequest.Domain)
+	if !success {
+		log.Error().Msgf("Domain %s not found", DNSReadRequest.Domain)
+		return xerrors.Errorf("Domain %s not found", DNSReadRequest.Domain)
+	}
+
+	// Calculate TTL based on expiration time
+	ttl := time.Until(DNSReadEntry.Expiration)
+	if ttl < 0 {
+		ttl = 0
+	}
+
+	DNSReadReply := &types.DNSReadReplyMessage{
+		Domain:    DNSReadEntry.Domain,
+		IPAddress: DNSReadEntry.IPAddress,
+		TTL:       ttl,
+	}
+
+	// Send DNSReadReply to the source
+	msgBytes, err := n.conf.MessageRegistry.MarshalMessage(DNSReadReply)
+	if err != nil {
+		log.Error().Msgf("Failed to marshal DNSReadReply message: %v", err)
+		return err
+	}
+
+	header := transport.NewHeader(
+		n.conf.Socket.GetAddress(),
+		n.conf.Socket.GetAddress(),
+		pkt.Header.Source,
+	)
+
+	replyPkt := createTransportPacket(&header, &msgBytes)
+
+	err = n.conf.Socket.Send(pkt.Header.Source, replyPkt, time.Second*1)
+	if err != nil {
+		log.Error().Msgf("Failed to send DNSReadReply message: %v", err)
+		return err
+	}
+
 	return nil
 }
 
 func (n *node) handleDNSRenewalMessage(msg types.Message, pkt transport.Packet) error {
-	// TODO Handle DNS renewal message
+	// Handle DNS renewal message
+	DNSRenewalRequest, ok := msg.(*types.DNSRenewalMessage)
+	if !ok {
+		log.Error().Msgf("Expected DNSRenewalMessage, got %T", msg)
+		return xerrors.Errorf("Expected DNSRenewalMessage, got %T", msg)
+	}
+
+	DNSReadEntry, success := n.dnsStore.Get(DNSRenewalRequest.Domain)
+	if !success {
+		log.Error().Msgf("Domain %s not found", DNSRenewalRequest.Domain)
+		return xerrors.Errorf("Domain %s not found", DNSRenewalRequest.Domain)
+	}
+
+	// Update the expiration time
+	DNSReadEntry.Expiration = DNSRenewalRequest.Expiration
+	n.dnsStore.Add(DNSRenewalRequest.Domain, DNSReadEntry)
+
+	log.Info().Msgf("Domain %s renewed until %s", DNSRenewalRequest.Domain, DNSRenewalRequest.Expiration)
 	return nil
 }
 
 func (n *node) handleDNSRegisterMessage(msg types.Message, pkt transport.Packet) error {
-	// TODO Handle DNS register message
+	// Handle DNS register message
+	DNSRegisterRequest, ok := msg.(*types.DNSRegisterMessage)
+	if !ok {
+		log.Error().Msgf("Expected DNSRegisterMessage, got %T", msg)
+		return xerrors.Errorf("Expected DNSRegisterMessage, got %T", msg)
+	}
+
+	// Create a new DNS entry
+	DNSReadEntry := DNSEntry{
+		Domain:     DNSRegisterRequest.Domain,
+		IPAddress:  DNSRegisterRequest.IPAddress,
+		Expiration: DNSRegisterRequest.Expiration,
+	}
+
+	n.dnsStore.Add(DNSRegisterRequest.Domain, DNSReadEntry)
+
+	log.Info().Msgf("Domain %s registered with IP %s until %s", DNSRegisterRequest.Domain, DNSRegisterRequest.IPAddress, DNSRegisterRequest.Expiration)
 	return nil
 }
