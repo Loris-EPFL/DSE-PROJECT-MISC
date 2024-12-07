@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	"go.dedis.ch/cs438/peer"
 	"go.dedis.ch/cs438/transport"
 	"golang.org/x/xerrors"
 )
@@ -88,8 +89,17 @@ func (s *sequenceNumber) getSequenceNumber() uint {
 }
 
 // GetDNSStore returns the DNS store
-func (n *node) GetDNSStore() SafeMap[string, DNSEntry] {
+func (n *node) GetDNSStore() peer.SafeMap[string, peer.DNSEntry] {
 	return n.dnsStore
+}
+
+// GetDNSStore returns the DNS store
+func (n *node) GetDNSStoreEntry(domain string) peer.DNSEntry {
+	entry, ok := n.dnsStore.Get(domain)
+	if !ok {
+		return peer.DNSEntry{}
+	}
+	return entry
 }
 
 /*

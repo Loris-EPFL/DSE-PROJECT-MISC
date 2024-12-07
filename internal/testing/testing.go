@@ -765,7 +765,18 @@ type Terminable interface {
 	Terminate() error
 }
 
+/*
 // GetDNSStore returns the DNS store associated with the node.
 func (t *TestNode) GetDNSStore() *peer.SafeMap[string, peer.DNSEntry] {
-	return &t.config.DNSStore
+	return t.GetDNSStore()
 }
+
+// GetDNSStore returns the DNS store
+func (t *TestNode) GetDNSStoreEntry(domain string) peer.DNSEntry {
+	entry, ok := t.GetDNSStore().Get(domain)
+	if !ok {
+		return peer.DNSEntry{}
+	}
+	return entry
+}
+*/

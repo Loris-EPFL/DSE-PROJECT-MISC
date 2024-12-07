@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog/log"
+	"go.dedis.ch/cs438/peer"
 	"go.dedis.ch/cs438/transport"
 	"go.dedis.ch/cs438/types"
 	"golang.org/x/xerrors"
@@ -561,7 +562,7 @@ func (n *node) handleDNSRegisterMessage(msg types.Message, pkt transport.Packet)
 	}
 
 	// Create a new DNS entry
-	DNSReadEntry := DNSEntry{
+	DNSReadEntry := peer.DNSEntry{
 		Domain:     DNSRegisterRequest.Domain,
 		IPAddress:  DNSRegisterRequest.IPAddress,
 		Expiration: DNSRegisterRequest.Expiration,
@@ -570,5 +571,27 @@ func (n *node) handleDNSRegisterMessage(msg types.Message, pkt transport.Packet)
 	n.dnsStore.Add(DNSRegisterRequest.Domain, DNSReadEntry)
 
 	log.Info().Msgf("Domain %s registered with IP %s until %s", DNSRegisterRequest.Domain, DNSRegisterRequest.IPAddress, DNSRegisterRequest.Expiration)
+	return nil
+}
+
+func (n *node) handleDNSReadReplyMessage(msg types.Message, pkt transport.Packet) error {
+	// Handle DNS read reply message
+	DNSReadReply, ok := msg.(*types.DNSReadReplyMessage)
+	if !ok {
+		log := n.getLogger()
+		log.Error().Msgf("Expected DNSReadReplyMessage, got %T", msg)
+		return xerrors.Errorf("Expected DNSReadReplyMessage, got %T", msg)
+	}
+
+	log := n.getLogger()
+	log.Info().
+		Str("domain", DNSReadReply.Domain).
+		Str("ip_address", DNSReadReply.IPAddress).
+		Dur("ttl", DNSReadReply.TTL).
+		Msg("Received DNS read reply message")
+
+	// Process the DNS read reply message as needed
+	// For example, you might want to update some internal state or notify other components
+
 	return nil
 }

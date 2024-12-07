@@ -80,10 +80,6 @@ type Configuration struct {
 	// retries to send a prepare when it doesn't get enough promises or accepts.
 	// Default: 5s.
 	PaxosProposerRetry time.Duration
-
-	//DNS Store
-	DNSStore SafeMap[string, DNSEntry] // Add this line to include DNSStore
-
 }
 
 // Backoff describes parameters for a backoff algorithm. The initial time must

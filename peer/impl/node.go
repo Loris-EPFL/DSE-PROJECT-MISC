@@ -2,20 +2,11 @@ package impl
 
 import (
 	"sync"
-	"time"
 
 	// Import the SafeMap from utils
 	"go.dedis.ch/cs438/peer"
 	"go.dedis.ch/cs438/types"
 )
-
-// Begin of DNS struct by Loris
-// DNSEntry represents a DNS entry with a domain name, IP address, and expiration date.
-type DNSEntry struct {
-	Domain     string
-	IPAddress  string
-	Expiration time.Time
-}
 
 type sequenceNumber struct {
 	mu        sync.Mutex
@@ -42,7 +33,7 @@ type node struct {
 	catalog               SafeCatalog
 
 	//Added DNS store
-	dnsStore SafeMap[string, DNSEntry]
+	dnsStore peer.SafeMap[string, peer.DNSEntry]
 }
 
 func NewPeer(conf peer.Configuration) peer.Peer {
@@ -61,7 +52,7 @@ func NewPeer(conf peer.Configuration) peer.Peer {
 		dataReplyChan:         NewSafeMap[string, chan *types.DataReplyMessage](),
 		searchReplyChan:       NewSafeMap[string, chan *types.SearchReplyMessage](),
 		catalog:               NewSafeCatalog(),
-		dnsStore:              NewSafeMap[string, DNSEntry](),
+		dnsStore:              peer.NewSafeMap[string, peer.DNSEntry](),
 	}
 
 	//initialize auxiliary structures
@@ -84,6 +75,8 @@ func NewPeer(conf peer.Configuration) peer.Peer {
 	n.conf.MessageRegistry.RegisterMessageCallback(types.DNSReadMessage{}, n.handleDNSReadMessage)
 	n.conf.MessageRegistry.RegisterMessageCallback(types.DNSRenewalMessage{}, n.handleDNSRenewalMessage)
 	n.conf.MessageRegistry.RegisterMessageCallback(types.DNSRegisterMessage{}, n.handleDNSRegisterMessage)
+
+	n.conf.MessageRegistry.RegisterMessageCallback(types.DNSReadReplyMessage{}, n.handleDNSReadReplyMessage)
 
 	return n
 }
