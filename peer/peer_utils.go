@@ -9,6 +9,7 @@ type DNSEntry struct {
 	Domain     string
 	IPAddress  string
 	Expiration time.Time
+	Owner      string
 }
 
 // SafeMap is a thread-safe map with a generic key type K and value type V.

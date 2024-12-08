@@ -6,77 +6,110 @@ import (
 )
 
 // DNSReadMessage represents a message to read a DNS entry.
-type DNSReadMessage struct {
+type DNSReadRequestMessage struct {
 	Domain string
 	TTL    time.Duration
 }
 
-func (m DNSReadMessage) NewEmpty() Message {
-	return &DNSReadMessage{}
+func (m DNSReadRequestMessage) NewEmpty() Message {
+	return &DNSReadRequestMessage{}
 }
 
-func (m DNSReadMessage) Name() string {
-	return "DNSReadMessage"
+func (m DNSReadRequestMessage) Name() string {
+	return "DNSReadRequestMessage"
 }
 
-func (m DNSReadMessage) String() string {
-	return fmt.Sprintf("DNSReadMessage: Domain=%s", m.Domain)
+func (m DNSReadRequestMessage) String() string {
+	return fmt.Sprintf("DNSReadRequestMessage: Domain=%s", m.Domain)
 }
 
-func (m DNSReadMessage) HTML() string {
-	return fmt.Sprintf("<b>DNSReadMessage</b>: Domain=%s", m.Domain)
+func (m DNSReadRequestMessage) HTML() string {
+	return fmt.Sprintf("<b>DNSReadRequestMessage</b>: Domain=%s", m.Domain)
 }
 
-// DNSRenewalMessage represents a message to renew a DNS entry.
-type DNSRenewalMessage struct {
-	Domain     string
-	Expiration time.Time
-}
-
-func (m DNSRenewalMessage) NewEmpty() Message {
-	return &DNSRenewalMessage{}
-}
-
-func (m DNSRenewalMessage) Name() string {
-	return "DNSRenewalMessage"
-}
-
-func (m DNSRenewalMessage) String() string {
-	return fmt.Sprintf("DNSRenewalMessage: Domain=%s, Expiration=%s", m.Domain, m.Expiration)
-}
-
-func (m DNSRenewalMessage) HTML() string {
-	return fmt.Sprintf("<b>DNSRenewalMessage</b>: Domain=%s, Expiration=%s", m.Domain, m.Expiration)
-}
-
-// DNSRegisterMessage represents a message to register a new DNS entry.
-type DNSRegisterMessage struct {
+// DNSUpdateMessage represents a message to update a DNS entry.
+type DNSUpdateMessage struct {
 	Domain     string
 	IPAddress  string
 	Expiration time.Time
+	Owner      string
+	Fee        uint64
 }
 
-func (m DNSRegisterMessage) NewEmpty() Message {
-	return &DNSRegisterMessage{}
+func (m DNSUpdateMessage) NewEmpty() Message {
+	return &DNSUpdateMessage{}
 }
 
-func (m DNSRegisterMessage) Name() string {
-	return "DNSRegisterMessage"
+func (m DNSUpdateMessage) Name() string {
+	return "DNSUpdateMessage"
 }
 
-func (m DNSRegisterMessage) String() string {
-	return fmt.Sprintf("DNSRegisterMessage: Domain=%s, IPAddress=%s, Expiration=%s", m.Domain, m.IPAddress, m.Expiration)
+func (m DNSUpdateMessage) String() string {
+	return fmt.Sprintf("DNSUpdateMessage: Domain=%s,IPAddress=%s Expiration=%s, Owner=%s", m.Domain, m.IPAddress, m.Expiration, m.Owner)
 }
 
-func (m DNSRegisterMessage) HTML() string {
-	return fmt.Sprintf("<b>DNSRegisterMessage</b>: Domain=%s, IPAddress=%s, Expiration=%s", m.Domain, m.IPAddress, m.Expiration)
+func (m DNSUpdateMessage) HTML() string {
+	return fmt.Sprintf("<b>DNSUpdateMessage</b>: Domain=%s,,IPAddress=%s Expiration=%s, Owner=%s", m.Domain, m.IPAddress, m.Expiration, m.Owner)
+}
+
+// DNSRegisterMessageNew represents a message to register a new DNS entry (At the 1st tx its only a salted hash to prevent frontrunning).
+type DNSRegisterMessageNew struct {
+	SaltedHash string
+	Expiration time.Time
+	Owner      string
+	Fee        uint64
+}
+
+func (m DNSRegisterMessageNew) NewEmpty() Message {
+	return &DNSRegisterMessageNew{}
+}
+
+func (m DNSRegisterMessageNew) Name() string {
+	return "DNSRegisterMessageNew"
+}
+
+func (m DNSRegisterMessageNew) String() string {
+	return fmt.Sprintf("DNSRegisterMessageNew: DomainHash=%s, Fee=%d, Expiration=%s, Owner=%s", m.SaltedHash, m.Fee, m.Expiration, m.Owner)
+}
+
+func (m DNSRegisterMessageNew) HTML() string {
+	return fmt.Sprintf("<b>DNSRegisterMessageNew</b>: DomainHash=%s, Fee=%d, Expiration=%s,  Owner=%s", m.SaltedHash, m.Fee, m.Expiration, m.Owner)
+}
+
+// DNSRegisterMessageNew represents a message to register a new DNS entry (At the 1st tx its only a salted hash to prevent frontrunning).
+type DNSRegisterMessageFirstUpdate struct {
+	Domain     string
+	IPAddress  string
+	Expiration time.Time
+	Owner      string
+	Salt       string
+	Fee        uint64
+}
+
+func (m DNSRegisterMessageFirstUpdate) NewEmpty() Message {
+	return &DNSRegisterMessageFirstUpdate{}
+}
+
+func (m DNSRegisterMessageFirstUpdate) Name() string {
+	return "DNSRegisterMessageFirstUpdate"
+}
+
+func (m DNSRegisterMessageFirstUpdate) String() string {
+	return fmt.Sprintf("DNSRegisterMessageFirstUpdate: Domain=%s, IPAddress=%s, Expiration=%s, Owner=%s, Salt=%s , Fee=%d", m.Domain, m.IPAddress, m.Expiration, m.Owner, m.Salt, m.Fee)
+}
+
+func (m DNSRegisterMessageFirstUpdate) HTML() string {
+	return fmt.Sprintf("<b>DNSRegisterMessageFirstUpdate</b>: Domain=%s, IPAddress=%s, Expiration=%s, Owner=%s, Salt=%s, Fee=%d", m.Domain, m.IPAddress, m.Expiration, m.Owner, m.Salt, m.Fee)
 }
 
 // DNSReadReplyMessage represents a reply message for a DNS read request.
 type DNSReadReplyMessage struct {
-	Domain    string
-	IPAddress string
-	TTL       time.Duration
+	Domain     string
+	IPAddress  string
+	TTL        time.Duration
+	Owner      string
+	Exists     bool
+	Expiration time.Time
 }
 
 func (m DNSReadReplyMessage) NewEmpty() Message {
@@ -88,9 +121,9 @@ func (m DNSReadReplyMessage) Name() string {
 }
 
 func (m DNSReadReplyMessage) String() string {
-	return fmt.Sprintf("DNSReadReplyMessage: Domain=%s, IPAddress=%s, TTL=%s", m.Domain, m.IPAddress, m.TTL)
+	return fmt.Sprintf("DNSReadReplyMessage: Domain=%s, IPAddress=%s, TTL=%s, Owner=%s, Expiration=%s", m.Domain, m.IPAddress, m.TTL, m.Owner, m.Expiration)
 }
 
 func (m DNSReadReplyMessage) HTML() string {
-	return fmt.Sprintf("<b>DNSReadReplyMessage</b>: Domain=%s, IPAddress=%s, TTL=%s", m.Domain, m.IPAddress, m.TTL)
+	return fmt.Sprintf("<b>DNSReadReplyMessage</b>: Domain=%s, IPAddress=%s, TTL=%s, Owner=%s, Expiration=%s", m.Domain, m.IPAddress, m.TTL, m.Owner, m.Expiration)
 }

@@ -1,6 +1,8 @@
 package unit
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"os"
 	"testing"
@@ -9,6 +11,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 	z "go.dedis.ch/cs438/internal/testing"
+	"go.dedis.ch/cs438/peer"
 	"go.dedis.ch/cs438/transport"
 	"go.dedis.ch/cs438/transport/channel"
 	"go.dedis.ch/cs438/types"
@@ -39,13 +42,6 @@ func init() {
 		With().Str("role", "Test File").Logger()
 }
 
-// DNSEntry represents a DNS entry containing essential information
-type DNSEntry struct {
-	Domain     string
-	IPAddress  string
-	Expiration time.Time
-}
-
 // Test handleDNSReadMessage
 func Test_HandleDNSReadMessage(t *testing.T) {
 	transp := channel.NewTransport()
@@ -54,34 +50,63 @@ func Test_HandleDNSReadMessage(t *testing.T) {
 	defer node.Stop()
 
 	// Register a DNS entry
-	dnsEntry := DNSEntry{
+	dnsEntry := peer.DNSEntry{
 		Domain:     "example.com",
 		IPAddress:  "192.168.1.1",
 		Expiration: time.Now().Add(time.Hour),
+		Owner:      "0x" + node.GetAddr(),
 	}
 
-	// Create DNSRegisterMessage
-	dnsRegisterMsg := types.DNSRegisterMessage{
-		Domain:     dnsEntry.Domain,
-		IPAddress:  dnsEntry.IPAddress,
+	// Create DNSRegisterMessageNew
+	hash := sha256.New()
+	hash.Write([]byte("random_salt" + dnsEntry.Domain))
+	saltedHash := hex.EncodeToString(hash.Sum(nil))
+
+	dnsRegisterMsgNew := types.DNSRegisterMessageNew{
+		SaltedHash: saltedHash,
 		Expiration: dnsEntry.Expiration,
+		Owner:      dnsEntry.Owner,
+		Fee:        1,
 	}
-	data, err := json.Marshal(&dnsRegisterMsg)
+	data, err := json.Marshal(&dnsRegisterMsgNew)
 	require.NoError(t, err)
 
 	msg := transport.Message{
-		Type:    dnsRegisterMsg.Name(),
+		Type:    dnsRegisterMsgNew.Name(),
 		Payload: data,
 	}
 
-	// Send DNSRegisterMessage
+	// Send DNSRegisterMessageNew
 	err = node.Broadcast(msg)
 	require.NoError(t, err)
 
 	time.Sleep(time.Second * 1)
 
-	// Create DNSReadMessage
-	dnsReadMsg := types.DNSReadMessage{
+	// Create DNSRegisterMessageFirstUpdate
+	dnsRegisterMsgFirstUpdate := types.DNSRegisterMessageFirstUpdate{
+		Domain:     dnsEntry.Domain,
+		IPAddress:  dnsEntry.IPAddress,
+		Expiration: dnsEntry.Expiration,
+		Owner:      dnsEntry.Owner,
+		Salt:       "random_salt",
+		Fee:        1,
+	}
+	data, err = json.Marshal(&dnsRegisterMsgFirstUpdate)
+	require.NoError(t, err)
+
+	msg = transport.Message{
+		Type:    dnsRegisterMsgFirstUpdate.Name(),
+		Payload: data,
+	}
+
+	// Send DNSRegisterMessageFirstUpdate
+	err = node.Broadcast(msg)
+	require.NoError(t, err)
+
+	time.Sleep(time.Second * 1)
+
+	// Create DNSReadRequestMessage
+	dnsReadMsg := types.DNSReadRequestMessage{
 		Domain: dnsEntry.Domain,
 		TTL:    time.Second,
 	}
@@ -93,7 +118,7 @@ func Test_HandleDNSReadMessage(t *testing.T) {
 		Payload: data,
 	}
 
-	// Send DNSReadMessage
+	// Send DNSReadRequestMessage
 	err = node.Broadcast(msg)
 	require.NoError(t, err)
 
@@ -128,36 +153,65 @@ func Test_HandleDNSRenewalMessage(t *testing.T) {
 	node1.AddPeer(node2.GetAddr())
 
 	// Register a DNS entry
-	dnsEntry := DNSEntry{
+	dnsEntry := peer.DNSEntry{
 		Domain:     "example.com",
 		IPAddress:  "192.168.1.1",
 		Expiration: time.Now().Add(time.Hour),
+		Owner:      "0x" + node1.GetAddr(),
 	}
 
-	// Create DNSRegisterMessage
-	dnsRegisterMsg := types.DNSRegisterMessage{
-		Domain:     dnsEntry.Domain,
-		IPAddress:  dnsEntry.IPAddress,
+	// Create DNSRegisterMessageNew
+	hash := sha256.New()
+	hash.Write([]byte("random_salt" + dnsEntry.Domain))
+	saltedHash := hex.EncodeToString(hash.Sum(nil))
+
+	dnsRegisterMsgNew := types.DNSRegisterMessageNew{
+		SaltedHash: saltedHash,
 		Expiration: dnsEntry.Expiration,
+		Owner:      dnsEntry.Owner,
+		Fee:        1,
 	}
-	data, err := json.Marshal(&dnsRegisterMsg)
+	data, err := json.Marshal(&dnsRegisterMsgNew)
 	require.NoError(t, err)
 
 	logger.Warn().Any("domain ", dnsEntry.Domain).Msg("Starting DNSRenewalMessage test")
 
 	msg := transport.Message{
-		Type:    dnsRegisterMsg.Name(),
+		Type:    dnsRegisterMsgNew.Name(),
 		Payload: data,
 	}
 
-	// Send DNSRegisterMessage
+	// Send DNSRegisterMessageNew
 	err = node1.Broadcast(msg)
 	require.NoError(t, err)
 
 	time.Sleep(time.Second * 1)
 
-	// Create DNSReadMessage
-	dnsReadMsg := types.DNSReadMessage{
+	// Create DNSRegisterMessageFirstUpdate
+	dnsRegisterMsgFirstUpdate := types.DNSRegisterMessageFirstUpdate{
+		Domain:     dnsEntry.Domain,
+		IPAddress:  dnsEntry.IPAddress,
+		Expiration: dnsEntry.Expiration,
+		Owner:      dnsEntry.Owner,
+		Salt:       "random_salt",
+		Fee:        1,
+	}
+	data, err = json.Marshal(&dnsRegisterMsgFirstUpdate)
+	require.NoError(t, err)
+
+	msg = transport.Message{
+		Type:    dnsRegisterMsgFirstUpdate.Name(),
+		Payload: data,
+	}
+
+	// Send DNSRegisterMessageFirstUpdate
+	err = node1.Broadcast(msg)
+	require.NoError(t, err)
+
+	time.Sleep(time.Second * 1)
+
+	// Create DNSReadRequestMessage
+	dnsReadMsg := types.DNSReadRequestMessage{
 		Domain: dnsEntry.Domain,
 		TTL:    time.Second,
 	}
@@ -169,7 +223,7 @@ func Test_HandleDNSRenewalMessage(t *testing.T) {
 		Payload: data,
 	}
 
-	// Send DNSReadMessage
+	// Send DNSReadRequestMessage
 	err = node1.Broadcast(msg)
 	require.NoError(t, err)
 
@@ -182,9 +236,11 @@ func Test_HandleDNSRenewalMessage(t *testing.T) {
 
 	// Create DNSRenewalMessage
 	newExpiration := time.Now().Add(2 * time.Hour)
-	dnsRenewalMsg := types.DNSRenewalMessage{
+	dnsRenewalMsg := types.DNSUpdateMessage{
 		Domain:     dnsEntry.Domain,
 		Expiration: newExpiration,
+		Owner:      dnsEntry.Owner,
+		Fee:        1,
 	}
 	data, err = json.Marshal(&dnsRenewalMsg)
 	require.NoError(t, err)
@@ -207,6 +263,25 @@ func Test_HandleDNSRenewalMessage(t *testing.T) {
 	logger.Warn().Any("dnsEntry", updatedEntry).Any("expiration", updatedEntry.Expiration).Msg("Checking if DNS entry was renewed")
 
 	require.WithinDuration(t, dnsRenewalMsg.Expiration, updatedEntry.Expiration, time.Second)
+
+	// Try to renew the DNS entry with a different owner
+	dnsRenewalMsgDifferentOwner := types.DNSUpdateMessage{
+		Domain:     dnsEntry.Domain,
+		Expiration: newExpiration,
+		Owner:      "owner2",
+		Fee:        1,
+	}
+	data, err = json.Marshal(&dnsRenewalMsgDifferentOwner)
+	require.NoError(t, err)
+
+	msg = transport.Message{
+		Type:    dnsRenewalMsgDifferentOwner.Name(),
+		Payload: data,
+	}
+
+	// Send DNSRenewalMessage with different owner
+	err = node1.Broadcast(msg)
+	require.Error(t, err, "Unauthorized renewal attempt by owner2 for domain example.com")
 }
 
 // Test handleDNSRegisterMessage
@@ -216,29 +291,78 @@ func Test_HandleDNSRegisterMessage(t *testing.T) {
 	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0")
 	defer node1.Stop()
 
-	// Create DNSRegisterMessage
-	dnsRegisterMsg := types.DNSRegisterMessage{
-		Domain:     "example.com",
-		IPAddress:  "192.168.1.1",
+	// Create DNSRegisterMessageNew
+	hash := sha256.New()
+	hash.Write([]byte("random_salt" + "example.com"))
+	saltedHash := hex.EncodeToString(hash.Sum(nil))
+
+	dnsRegisterMsgNew := types.DNSRegisterMessageNew{
+		SaltedHash: saltedHash,
 		Expiration: time.Now().Add(time.Hour),
+		Owner:      "0x" + node1.GetAddr(),
+		Fee:        1,
 	}
-	data, err := json.Marshal(&dnsRegisterMsg)
+	data, err := json.Marshal(&dnsRegisterMsgNew)
 	require.NoError(t, err)
 
 	msg := transport.Message{
-		Type:    dnsRegisterMsg.Name(),
+		Type:    dnsRegisterMsgNew.Name(),
 		Payload: data,
 	}
 
-	// Send DNSRegisterMessage
+	// Send DNSRegisterMessageNew
+	err = node1.Broadcast(msg)
+	require.NoError(t, err)
+
+	time.Sleep(time.Second * 1)
+
+	// Create DNSRegisterMessageFirstUpdate
+	dnsRegisterMsgFirstUpdate := types.DNSRegisterMessageFirstUpdate{
+		Domain:     "example.com",
+		IPAddress:  "192.168.1.1",
+		Expiration: time.Now().Add(time.Hour),
+		Owner:      "0x" + node1.GetAddr(),
+		Salt:       "random_salt",
+		Fee:        1,
+	}
+	data, err = json.Marshal(&dnsRegisterMsgFirstUpdate)
+	require.NoError(t, err)
+
+	msg = transport.Message{
+		Type:    dnsRegisterMsgFirstUpdate.Name(),
+		Payload: data,
+	}
+
+	// Send DNSRegisterMessageFirstUpdate
 	err = node1.Broadcast(msg)
 	require.NoError(t, err)
 
 	time.Sleep(time.Second * 1)
 
 	// Check if DNS entry was registered
-	registeredEntry := node1.Peer.GetDNSStoreEntry(dnsRegisterMsg.Domain)
-	require.Equal(t, dnsRegisterMsg.Domain, registeredEntry.Domain)
-	require.Equal(t, dnsRegisterMsg.IPAddress, registeredEntry.IPAddress)
-	require.WithinDuration(t, dnsRegisterMsg.Expiration, registeredEntry.Expiration, time.Second)
+	registeredEntry := node1.Peer.GetDNSStoreEntry(dnsRegisterMsgFirstUpdate.Domain)
+	require.Equal(t, dnsRegisterMsgFirstUpdate.Domain, registeredEntry.Domain)
+	require.Equal(t, dnsRegisterMsgFirstUpdate.IPAddress, registeredEntry.IPAddress)
+	require.WithinDuration(t, dnsRegisterMsgFirstUpdate.Expiration, registeredEntry.Expiration, time.Second)
+
+	// Try to register the same DNS entry with a different owner
+	dnsRegisterMsgDifferentOwner := types.DNSRegisterMessageFirstUpdate{
+		Domain:     "example.com",
+		IPAddress:  "192.168.1.2",
+		Expiration: time.Now().Add(time.Hour),
+		Owner:      "owner2",
+		Salt:       "random_salt",
+		Fee:        1,
+	}
+	data, err = json.Marshal(&dnsRegisterMsgDifferentOwner)
+	require.NoError(t, err)
+
+	msg = transport.Message{
+		Type:    dnsRegisterMsgDifferentOwner.Name(),
+		Payload: data,
+	}
+
+	// Send DNSRegisterMessageFirstUpdate with different owner
+	err = node1.Broadcast(msg)
+	require.Error(t, err, "Unauthorized registration attempt by owner2 for domain example.com")
 }

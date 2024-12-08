@@ -101,22 +101,3 @@ func (n *node) GetDNSStoreEntry(domain string) peer.DNSEntry {
 	}
 	return entry
 }
-
-/*
-// GetDNSStoreCopy returns a deep copy of the DNS store
-func (n *node) GetDNSStoreCopy() SafeMap[string, DNSEntry] {
-	originalStore := n.GetDNSStore()
-	copyStore := SafeMap[string, DNSEntry]{
-		store: make(map[string]DNSEntry),
-	}
-
-	originalStore.mu.RLock()
-	defer originalStore.mu.RUnlock()
-
-	for key, value := range originalStore.store {
-		copyStore.store[key] = value
-	}
-
-	return copyStore
-}
-*/

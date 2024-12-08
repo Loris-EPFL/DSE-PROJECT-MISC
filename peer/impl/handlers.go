@@ -1,6 +1,8 @@
 package impl
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"math/rand"
 	"regexp"
 	"time"
@@ -481,12 +483,13 @@ func (n *node) handleSearchReplyMessage(msg types.Message, pkt transport.Packet)
 
 // Begin New Handlers for DNS messages
 
-func (n *node) handleDNSReadMessage(msg types.Message, pkt transport.Packet) error {
+// handleDNSReadRequestMessage processes a DNS read request and sends a reply with the DNS entry details.
+func (n *node) handleDNSReadRequestMessage(msg types.Message, pkt transport.Packet) error {
 	// Handle DNS read message
-	DNSReadRequest, ok := msg.(*types.DNSReadMessage)
+	DNSReadRequest, ok := msg.(*types.DNSReadRequestMessage)
 	if !ok {
-		log.Error().Msgf("Expected DNSReadMessage, got %T", msg)
-		return xerrors.Errorf("Expected DNSReadMessage, got %T", msg)
+		log.Error().Msgf("Expected DNSReadRequestMessage, got %T", msg)
+		return xerrors.Errorf("Expected DNSReadRequestMessage, got %T", msg)
 	}
 
 	DNSReadEntry, success := n.dnsStore.Get(DNSReadRequest.Domain)
@@ -502,9 +505,12 @@ func (n *node) handleDNSReadMessage(msg types.Message, pkt transport.Packet) err
 	}
 
 	DNSReadReply := &types.DNSReadReplyMessage{
-		Domain:    DNSReadEntry.Domain,
-		IPAddress: DNSReadEntry.IPAddress,
-		TTL:       ttl,
+		Domain:     DNSReadEntry.Domain,
+		IPAddress:  DNSReadEntry.IPAddress,
+		TTL:        ttl,
+		Owner:      DNSReadEntry.Owner,
+		Exists:     true,
+		Expiration: DNSReadEntry.Expiration,
 	}
 
 	// Send DNSReadReply to the source
@@ -531,49 +537,6 @@ func (n *node) handleDNSReadMessage(msg types.Message, pkt transport.Packet) err
 	return nil
 }
 
-func (n *node) handleDNSRenewalMessage(msg types.Message, pkt transport.Packet) error {
-	// Handle DNS renewal message
-	DNSRenewalRequest, ok := msg.(*types.DNSRenewalMessage)
-	if !ok {
-		log.Error().Msgf("Expected DNSRenewalMessage, got %T", msg)
-		return xerrors.Errorf("Expected DNSRenewalMessage, got %T", msg)
-	}
-
-	DNSReadEntry, success := n.dnsStore.Get(DNSRenewalRequest.Domain)
-	if !success {
-		log.Error().Msgf("Domain %s not found", DNSRenewalRequest.Domain)
-		return xerrors.Errorf("Domain %s not found", DNSRenewalRequest.Domain)
-	}
-
-	// Update the expiration time
-	DNSReadEntry.Expiration = DNSRenewalRequest.Expiration
-	n.dnsStore.Add(DNSRenewalRequest.Domain, DNSReadEntry)
-
-	log.Info().Msgf("Domain %s renewed until %s", DNSRenewalRequest.Domain, DNSRenewalRequest.Expiration)
-	return nil
-}
-
-func (n *node) handleDNSRegisterMessage(msg types.Message, pkt transport.Packet) error {
-	// Handle DNS register message
-	DNSRegisterRequest, ok := msg.(*types.DNSRegisterMessage)
-	if !ok {
-		log.Error().Msgf("Expected DNSRegisterMessage, got %T", msg)
-		return xerrors.Errorf("Expected DNSRegisterMessage, got %T", msg)
-	}
-
-	// Create a new DNS entry
-	DNSReadEntry := peer.DNSEntry{
-		Domain:     DNSRegisterRequest.Domain,
-		IPAddress:  DNSRegisterRequest.IPAddress,
-		Expiration: DNSRegisterRequest.Expiration,
-	}
-
-	n.dnsStore.Add(DNSRegisterRequest.Domain, DNSReadEntry)
-
-	log.Info().Msgf("Domain %s registered with IP %s until %s", DNSRegisterRequest.Domain, DNSRegisterRequest.IPAddress, DNSRegisterRequest.Expiration)
-	return nil
-}
-
 func (n *node) handleDNSReadReplyMessage(msg types.Message, pkt transport.Packet) error {
 	// Handle DNS read reply message
 	DNSReadReply, ok := msg.(*types.DNSReadReplyMessage)
@@ -593,5 +556,103 @@ func (n *node) handleDNSReadReplyMessage(msg types.Message, pkt transport.Packet
 	// Process the DNS read reply message as needed
 	// For example, you might want to update some internal state or notify other components
 
+	return nil
+}
+
+// handleDNSUpdateMessage processes a DNS renewal request and updates the DNS entry expiration.
+func (n *node) handleDNSUpdateMessage(msg types.Message, pkt transport.Packet) error {
+	// Handle DNS renewal message
+	DNSRenewalRequest, ok := msg.(*types.DNSUpdateMessage)
+	if !ok {
+		log.Error().Msgf("Expected DNSUpdateMessage, got %T", msg)
+		return xerrors.Errorf("Expected DNSUpdateMessage, got %T", msg)
+	}
+
+	DNSReadEntry, success := n.dnsStore.Get(DNSRenewalRequest.Domain)
+	if !success {
+		log.Error().Msgf("Domain %s not found", DNSRenewalRequest.Domain)
+		return xerrors.Errorf("Domain %s not found", DNSRenewalRequest.Domain)
+	}
+
+	// Check if the owner is authorized to renew the DNS entry
+	if DNSReadEntry.Owner != DNSRenewalRequest.Owner {
+		log.Error().Msgf("Unauthorized renewal attempt by %s for domain %s", DNSRenewalRequest.Owner, DNSRenewalRequest.Domain)
+		return xerrors.Errorf("Unauthorized renewal attempt by %s for domain %s", DNSRenewalRequest.Owner, DNSRenewalRequest.Domain)
+	}
+
+	// Update the expiration time
+	DNSReadEntry.Expiration = DNSRenewalRequest.Expiration
+	DNSReadEntry.Owner = DNSRenewalRequest.Owner
+	DNSReadEntry.IPAddress = DNSRenewalRequest.IPAddress
+	n.dnsStore.Add(DNSRenewalRequest.Domain, DNSReadEntry)
+
+	log.Info().Msgf("Domain %s renewed to %s until %s for new Owner %s", DNSRenewalRequest.Domain, DNSRenewalRequest.IPAddress, DNSRenewalRequest.Expiration, DNSRenewalRequest.Owner)
+
+	return nil
+}
+
+// handleDNSRegisterMessageNew processes a new DNS registration request with a salted hash.
+func (n *node) handleDNSRegisterMessageNew(msg types.Message, pkt transport.Packet) error {
+	// Handle DNS register message
+	DNSRegisterRequest, ok := msg.(*types.DNSRegisterMessageNew)
+	if !ok {
+		log.Error().Msgf("Expected DNSRegisterMessageNew, got %T", msg)
+		return xerrors.Errorf("Expected DNSRegisterMessageNew, got %T", msg)
+	}
+
+	// Check if the salted hash is already registered
+	_, success := n.hashStore.Get(DNSRegisterRequest.SaltedHash)
+	if success {
+		log.Error().Msgf("Salted hash %s already registered", DNSRegisterRequest.SaltedHash)
+		return xerrors.Errorf("Salted hash %s already registered", DNSRegisterRequest.SaltedHash)
+	}
+
+	// Store the salted hash with the fee
+	n.hashStore.Add(DNSRegisterRequest.SaltedHash, DNSRegisterRequest.Owner)
+
+	//TODO: add pay fee
+
+	log.Info().Msgf("Salted hash %s registered with fee %f", DNSRegisterRequest.SaltedHash, DNSRegisterRequest.Fee)
+	return nil
+}
+
+// handleDNSRegisterMessageFirstUpdate processes the first update of a DNS registration, revealing the domain and IP address.
+func (n *node) handleDNSRegisterMessageFirstUpdate(msg types.Message, pkt transport.Packet) error {
+	// Handle name_firstupdate message
+	NameFirstUpdateRequest, ok := msg.(*types.DNSRegisterMessageFirstUpdate)
+	if !ok {
+		log.Error().Msgf("Expected DNSRegisterMessageFirstUpdate, got %T", msg)
+		return xerrors.Errorf("Expected DNSRegisterMessageFirstUpdate, got %T", msg)
+	}
+
+	// Generate salted hash of the domain name
+	hash := sha256.New()
+	hash.Write([]byte(NameFirstUpdateRequest.Salt + NameFirstUpdateRequest.Domain))
+	saltedHash := hex.EncodeToString(hash.Sum(nil))
+
+	// Check if the salted hash exists in the hash store
+	owner, success := n.hashStore.Get(saltedHash)
+	if !success {
+		log.Error().Msgf("Salted hash %s not found", saltedHash)
+		return xerrors.Errorf("Salted hash %s not found", saltedHash)
+	}
+
+	// Check if the owner is the same
+	if owner != NameFirstUpdateRequest.Owner {
+		log.Error().Msgf("Unauthorized first update attempt by %s for domain %s", NameFirstUpdateRequest.Owner, NameFirstUpdateRequest.Domain)
+		return xerrors.Errorf("Unauthorized first update attempt by %s for domain %s", NameFirstUpdateRequest.Owner, NameFirstUpdateRequest.Domain)
+	}
+
+	// Create a new DNS entry
+	DNSReadEntry := peer.DNSEntry{
+		Domain:     NameFirstUpdateRequest.Domain,
+		IPAddress:  NameFirstUpdateRequest.IPAddress,
+		Expiration: NameFirstUpdateRequest.Expiration,
+		Owner:      NameFirstUpdateRequest.Owner,
+	}
+
+	n.dnsStore.Add(NameFirstUpdateRequest.Domain, DNSReadEntry)
+
+	log.Info().Msgf("Domain %s registered with IP %s until %s by owner %s", NameFirstUpdateRequest.Domain, NameFirstUpdateRequest.IPAddress, NameFirstUpdateRequest.Expiration, NameFirstUpdateRequest.Owner)
 	return nil
 }
