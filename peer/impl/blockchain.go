@@ -136,7 +136,7 @@ func (n *node) validateTransaction(tx *types.Transaction) error {
 		}
 
 		// Check expiration is in the future
-		if tx.Output.Expiration <= uint64(time.Now().Unix()) {
+		if tx.Output.Expiration.Before(time.Now()) {
 			return xerrors.New("Expiration must be in the future for NameNew")
 		}
 
@@ -160,12 +160,12 @@ func (n *node) validateTransaction(tx *types.Transaction) error {
 		}
 
 		// Expiration must be greater than the old expiration
-		if tx.Output.Expiration <= inputUTXO.Expiration {
+		if tx.Output.Expiration.Before(inputUTXO.Expiration) {
 			return xerrors.New("NameFirstUpdate expiration must be greater than NameNew expiration")
 		}
 
 		// Check expiration is in the future
-		if tx.Output.Expiration <= uint64(time.Now().Unix()) {
+		if tx.Output.Expiration.Before(time.Now()) {
 			return xerrors.New("NameFirstUpdate expiration must be in the future")
 		}
 
@@ -182,12 +182,12 @@ func (n *node) validateTransaction(tx *types.Transaction) error {
 		}
 
 		// New expiration must be greater than old expiration
-		if tx.Output.Expiration <= inputUTXO.Expiration {
+		if tx.Output.Expiration.Before(inputUTXO.Expiration) {
 			return xerrors.New("NameUpdate expiration must be greater than previous expiration")
 		}
 
 		// Check expiration is in the future
-		if tx.Output.Expiration <= uint64(time.Now().Unix()) {
+		if tx.Output.Expiration.Before(time.Now()) {
 			return xerrors.New("NameUpdate expiration must be in the future")
 		}
 

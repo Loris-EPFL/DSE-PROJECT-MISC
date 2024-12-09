@@ -491,51 +491,41 @@ func (n *node) handleDNSReadRequestMessage(msg types.Message, pkt transport.Pack
 	}
 
 	logger.Info().Any("DNSReadRequest", DNSReadRequest)
-	//TODO change and iterate over all utxos list
-	/*
+	// Check if the domain exists in the DNS store
+	UTXO, ok := n.UTXOSet.Get(DNSReadRequest.Domain)
+	if !ok {
+		log.Error().Msgf("Domain %s not found", DNSReadRequest.Domain)
+		return xerrors.Errorf("Domain %s not found", DNSReadRequest.Domain)
+	}
 
-		DNSReadEntry, success := n.dnsStore.Get(DNSReadRequest.Domain)
-		if !success {
-			log.Error().Msgf("Domain %s not found", DNSReadRequest.Domain)
-			return xerrors.Errorf("Domain %s not found", DNSReadRequest.Domain)
-		}
+	DNSReadReply := &types.DNSReadReplyMessage{
+		Domain:     UTXO.DomainName,
+		IPAddress:  UTXO.IP,
+		Owner:      UTXO.Owner,
+		Exists:     true,
+		Expiration: UTXO.Expiration,
+	}
 
-		// Calculate TTL based on expiration time
-		ttl := time.Until(DNSReadEntry.Expiration)
-		if ttl < 0 {
-			ttl = 0
-		}
+	// Send DNSReadReply to the source
+	msgBytes, err := n.conf.MessageRegistry.MarshalMessage(DNSReadReply)
+	if err != nil {
+		log.Error().Msgf("Failed to marshal DNSReadReply message: %v", err)
+		return err
+	}
 
-		DNSReadReply := &types.DNSReadReplyMessage{
-			Domain:     DNSReadEntry.Domain,
-			IPAddress:  DNSReadEntry.IPAddress,
-			TTL:        ttl,
-			Owner:      DNSReadEntry.Owner,
-			Exists:     true,
-			Expiration: DNSReadEntry.Expiration,
-		}
+	header := transport.NewHeader(
+		n.conf.Socket.GetAddress(),
+		n.conf.Socket.GetAddress(),
+		pkt.Header.Source,
+	)
 
-		// Send DNSReadReply to the source
-		msgBytes, err := n.conf.MessageRegistry.MarshalMessage(DNSReadReply)
-		if err != nil {
-			log.Error().Msgf("Failed to marshal DNSReadReply message: %v", err)
-			return err
-		}
+	replyPkt := createTransportPacket(&header, &msgBytes)
 
-		header := transport.NewHeader(
-			n.conf.Socket.GetAddress(),
-			n.conf.Socket.GetAddress(),
-			pkt.Header.Source,
-		)
-
-		replyPkt := createTransportPacket(&header, &msgBytes)
-
-		err = n.conf.Socket.Send(pkt.Header.Source, replyPkt, time.Second*1)
-		if err != nil {
-			log.Error().Msgf("Failed to send DNSReadReply message: %v", err)
-			return err
-		}
-	*/
+	err = n.conf.Socket.Send(pkt.Header.Source, replyPkt, time.Second*1)
+	if err != nil {
+		log.Error().Msgf("Failed to send DNSReadReply message: %v", err)
+		return err
+	}
 
 	return nil
 }
@@ -562,6 +552,7 @@ func (n *node) handleDNSReadReplyMessage(msg types.Message, pkt transport.Packet
 	return nil
 }
 
+// Added Handler for TransactionMessage (can be new, firstupdate or update)
 func (n *node) handleTransactionMessage(msg types.Message, pkt transport.Packet) error {
 	log := n.getLogger()
 	txMsg, ok := msg.(*types.TransactionMessage)

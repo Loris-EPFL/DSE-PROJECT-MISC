@@ -72,7 +72,7 @@ type TransactionOutput struct {
 	DomainName string
 	IP         string
 	Owner      string
-	Expiration uint64
+	Expiration time.Time
 }
 
 // For NameFirstUpdate, we need to reveal the salt and plaintext domain
@@ -92,7 +92,7 @@ type UTXO struct {
 	DomainName    string // This could be hashed domain for NameNew and actual domain for NameFirstUpdate/Update
 	IP            string
 	Owner         string
-	Expiration    uint64
+	Expiration    time.Time
 }
 
 type Block struct {
