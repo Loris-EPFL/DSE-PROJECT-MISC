@@ -53,6 +53,7 @@ func (m DNSReadReplyMessage) HTML() string {
 	return fmt.Sprintf("<b>DNSReadReplyMessage</b>: Domain=%s, IPAddress=%s, TTL=%s, Owner=%s, Expiration=%s", m.Domain, m.IPAddress, m.TTL, m.Owner, m.Expiration)
 }
 
+// Transaction types
 type TransactionType string
 
 const (
@@ -61,6 +62,7 @@ const (
 	NameUpdate      TransactionType = "name_update"
 )
 
+// Transaction input for UTXO
 type TransactionInput struct {
 	TransactionID string
 	Index         int
@@ -86,6 +88,7 @@ type Transaction struct {
 	HashedDomain string // For NameNew: store the hashed domain here instead of plaintext in Output.DomainName
 }
 
+// UTXO represents an unspent transaction output.
 type UTXO struct {
 	TransactionID string
 	Index         int
@@ -95,6 +98,7 @@ type UTXO struct {
 	Expiration    time.Time
 }
 
+// Block represents a block in the blockchain.
 type Block struct {
 	PrevBlockHash []byte
 	MerkleRoot    []byte
@@ -104,6 +108,7 @@ type Block struct {
 }
 
 // TransactionMessage is a message containing a Transaction.
+// Extends the types.Message interface (for handlers to be able to handle this message).
 // It will be broadcast or unicast to other peers for them to add to their mempool.
 type TransactionMessage struct {
 	Tx Transaction

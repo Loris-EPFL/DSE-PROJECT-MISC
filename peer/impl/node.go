@@ -54,6 +54,7 @@ func NewPeer(conf peer.Configuration) peer.Peer {
 		searchReplyChan:       NewSafeMap[string, chan *types.SearchReplyMessage](),
 		catalog:               NewSafeCatalog(),
 		UTXOSet:               NewSafeMap[string, types.UTXO](),
+		mempool:               NewSafeMap[string, types.Transaction](),
 	}
 
 	//initialize auxiliary structures
@@ -76,12 +77,6 @@ func NewPeer(conf peer.Configuration) peer.Peer {
 	n.conf.MessageRegistry.RegisterMessageCallback(types.DNSReadRequestMessage{}, n.handleDNSReadRequestMessage)
 	n.conf.MessageRegistry.RegisterMessageCallback(types.DNSReadReplyMessage{}, n.handleDNSReadReplyMessage)
 	n.conf.MessageRegistry.RegisterMessageCallback(types.TransactionMessage{}, n.handleTransactionMessage)
-
-	/*
-		n.conf.MessageRegistry.RegisterMessageCallback(types.DNSUpdateMessage{}, n.handleDNSUpdateMessage)
-		n.conf.MessageRegistry.RegisterMessageCallback(types.DNSRegisterMessageFirstUpdate{}, n.handleDNSRegisterMessageFirstUpdate)
-		n.conf.MessageRegistry.RegisterMessageCallback(types.DNSRegisterMessageNew{}, n.handleDNSRegisterMessageNew)
-	*/
 
 	return n
 }
