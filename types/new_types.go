@@ -27,81 +27,6 @@ func (m DNSReadRequestMessage) HTML() string {
 	return fmt.Sprintf("<b>DNSReadRequestMessage</b>: Domain=%s", m.Domain)
 }
 
-// DNSUpdateMessage represents a message to update a DNS entry.
-type DNSUpdateMessage struct {
-	Domain     string
-	IPAddress  string
-	Expiration time.Time
-	Owner      string
-	Fee        uint64
-}
-
-func (m DNSUpdateMessage) NewEmpty() Message {
-	return &DNSUpdateMessage{}
-}
-
-func (m DNSUpdateMessage) Name() string {
-	return "DNSUpdateMessage"
-}
-
-func (m DNSUpdateMessage) String() string {
-	return fmt.Sprintf("DNSUpdateMessage: Domain=%s,IPAddress=%s Expiration=%s, Owner=%s", m.Domain, m.IPAddress, m.Expiration, m.Owner)
-}
-
-func (m DNSUpdateMessage) HTML() string {
-	return fmt.Sprintf("<b>DNSUpdateMessage</b>: Domain=%s,,IPAddress=%s Expiration=%s, Owner=%s", m.Domain, m.IPAddress, m.Expiration, m.Owner)
-}
-
-// DNSRegisterMessageNew represents a message to register a new DNS entry (At the 1st tx its only a salted hash to prevent frontrunning).
-type DNSRegisterMessageNew struct {
-	SaltedHash string
-	Expiration time.Time
-	Owner      string
-	Fee        uint64
-}
-
-func (m DNSRegisterMessageNew) NewEmpty() Message {
-	return &DNSRegisterMessageNew{}
-}
-
-func (m DNSRegisterMessageNew) Name() string {
-	return "DNSRegisterMessageNew"
-}
-
-func (m DNSRegisterMessageNew) String() string {
-	return fmt.Sprintf("DNSRegisterMessageNew: DomainHash=%s, Fee=%d, Expiration=%s, Owner=%s", m.SaltedHash, m.Fee, m.Expiration, m.Owner)
-}
-
-func (m DNSRegisterMessageNew) HTML() string {
-	return fmt.Sprintf("<b>DNSRegisterMessageNew</b>: DomainHash=%s, Fee=%d, Expiration=%s,  Owner=%s", m.SaltedHash, m.Fee, m.Expiration, m.Owner)
-}
-
-// DNSRegisterMessageNew represents a message to register a new DNS entry (At the 1st tx its only a salted hash to prevent frontrunning).
-type DNSRegisterMessageFirstUpdate struct {
-	Domain     string
-	IPAddress  string
-	Expiration time.Time
-	Owner      string
-	Salt       string
-	Fee        uint64
-}
-
-func (m DNSRegisterMessageFirstUpdate) NewEmpty() Message {
-	return &DNSRegisterMessageFirstUpdate{}
-}
-
-func (m DNSRegisterMessageFirstUpdate) Name() string {
-	return "DNSRegisterMessageFirstUpdate"
-}
-
-func (m DNSRegisterMessageFirstUpdate) String() string {
-	return fmt.Sprintf("DNSRegisterMessageFirstUpdate: Domain=%s, IPAddress=%s, Expiration=%s, Owner=%s, Salt=%s , Fee=%d", m.Domain, m.IPAddress, m.Expiration, m.Owner, m.Salt, m.Fee)
-}
-
-func (m DNSRegisterMessageFirstUpdate) HTML() string {
-	return fmt.Sprintf("<b>DNSRegisterMessageFirstUpdate</b>: Domain=%s, IPAddress=%s, Expiration=%s, Owner=%s, Salt=%s, Fee=%d", m.Domain, m.IPAddress, m.Expiration, m.Owner, m.Salt, m.Fee)
-}
-
 // DNSReadReplyMessage represents a reply message for a DNS read request.
 type DNSReadReplyMessage struct {
 	Domain     string
@@ -126,4 +51,80 @@ func (m DNSReadReplyMessage) String() string {
 
 func (m DNSReadReplyMessage) HTML() string {
 	return fmt.Sprintf("<b>DNSReadReplyMessage</b>: Domain=%s, IPAddress=%s, TTL=%s, Owner=%s, Expiration=%s", m.Domain, m.IPAddress, m.TTL, m.Owner, m.Expiration)
+}
+
+type TransactionType string
+
+const (
+	NameNew         TransactionType = "name_new"
+	NameFirstUpdate TransactionType = "name_firstupdate"
+	NameUpdate      TransactionType = "name_update"
+)
+
+type TransactionInput struct {
+	TransactionID string
+	Index         int
+}
+
+type TransactionOutput struct {
+	// For NameNew: this will store the hashed domain (not the plaintext)
+	// For NameFirstUpdate/NameUpdate: this will store the actual domain name, now revealed
+	DomainName string
+	IP         string
+	Owner      string
+	Expiration uint64
+}
+
+// For NameFirstUpdate, we need to reveal the salt and plaintext domain
+type Transaction struct {
+	ID           string
+	Type         TransactionType
+	Input        TransactionInput // For NameNew, this may be empty or a dummy input
+	Output       TransactionOutput
+	PlainDomain  string // Only used in NameFirstUpdate to reveal domain
+	Salt         string // Only used in NameFirstUpdate to verify the hash
+	HashedDomain string // For NameNew: store the hashed domain here instead of plaintext in Output.DomainName
+}
+
+type UTXO struct {
+	TransactionID string
+	Index         int
+	DomainName    string // This could be hashed domain for NameNew and actual domain for NameFirstUpdate/Update
+	IP            string
+	Owner         string
+	Expiration    uint64
+}
+
+type Block struct {
+	PrevBlockHash []byte
+	MerkleRoot    []byte
+	Bits          int
+	Nonce         int
+	Transactions  []*Transaction
+}
+
+// TransactionMessage is a message containing a Transaction.
+// It will be broadcast or unicast to other peers for them to add to their mempool.
+type TransactionMessage struct {
+	Tx Transaction
+}
+
+// NewEmpty implements types.Message.
+func (TransactionMessage) NewEmpty() Message {
+	return &TransactionMessage{}
+}
+
+// Name implements types.Message.
+func (TransactionMessage) Name() string {
+	return "transaction"
+}
+
+// String implements types.Message.
+func (tm TransactionMessage) String() string {
+	return fmt.Sprintf("TransactionMessage: ID=%s, Type=%s", tm.Tx.ID, tm.Tx.Type)
+}
+
+// HTML implements types.Message.
+func (tm TransactionMessage) HTML() string {
+	return fmt.Sprintf("<b>TransactionMessage</b>: ID=%s, Type=%s", tm.Tx.ID, tm.Tx.Type)
 }
