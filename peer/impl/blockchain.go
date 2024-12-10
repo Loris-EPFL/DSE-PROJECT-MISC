@@ -161,6 +161,7 @@ func (n *node) validateTransaction(tx *types.Transaction) error {
 	case types.NameFirstUpdate:
 		// Validate NameFirstUpdate
 		// Must have a valid input referencing a NameNew UTXO
+		logger.Info().Any("tx", tx).Msg("Validating NameFirstUpdate")
 		inputUTXO, found, err := n.findUTXO(tx.Input)
 		if err != nil || !found {
 			return xerrors.Errorf("Input UTXO not found for NameFirstUpdate")
@@ -211,12 +212,14 @@ func (n *node) validateTransaction(tx *types.Transaction) error {
 		return xerrors.New("Invalid transaction type")
 
 	}
-	return xerrors.New("Transaction validation failed")
+	return nil
 }
 
 // * auxiliary functions
 func (n *node) findUTXO(utxoToFind types.UTXO) (types.UTXO, bool, error) {
 	utxoSet := n.UTXOSet.ToMap()
+
+	//TODO: not check domain name (since salted hash) but by something else
 
 	for _, utxo := range utxoSet {
 		if utxo.DomainName == utxoToFind.DomainName {
