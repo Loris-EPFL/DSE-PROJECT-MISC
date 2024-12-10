@@ -101,7 +101,6 @@ type UTXO struct {
 // Block represents a block in the blockchain.
 type Block struct {
 	PrevBlockHash []byte
-	MerkleRoot    []byte
 	Bits          int
 	Nonce         int
 	Transactions  []*Transaction

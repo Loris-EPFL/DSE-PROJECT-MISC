@@ -33,7 +33,7 @@ type node struct {
 	catalog               SafeCatalog
 
 	//Added DNS store
-	UTXOSet SafeMap[string, types.UTXO]        //Mapping from Owner (to verify ?) to UTXO
+	UTXOSet SafeMap[string, types.UTXO]        //Mapping from Domain to UTXO
 	mempool SafeMap[string, types.Transaction] //Mapping from Transaction ID to Transaction
 }
 
