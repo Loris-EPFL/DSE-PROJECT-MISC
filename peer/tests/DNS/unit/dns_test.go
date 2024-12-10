@@ -44,8 +44,13 @@ func init() {
 func Test_HandleDNSReadMessage(t *testing.T) {
 	transp := channel.NewTransport()
 
-	node := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0")
-	defer node.Stop()
+	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0")
+	defer node1.Stop()
+
+	node2 := z.NewTestNode(t, peerFac, transp, "127.0.0.2:0")
+	defer node2.Stop()
+
+	node1.AddPeer(node2.GetAddr())
 
 	// Register a DNS entry
 	dnsEntry := types.DNSReadRequestMessage{
@@ -70,10 +75,10 @@ func Test_HandleDNSReadMessage(t *testing.T) {
 	msg := types.TransactionMessage{
 		Tx: nameNewTx,
 	}
-	transpStatusMsg, err := node.GetRegistry().MarshalMessage(&msg)
+	transpStatusMsg, err := node1.GetRegistry().MarshalMessage(&msg)
 
 	// Send NameNew transaction
-	err = node.Broadcast(transpStatusMsg)
+	err = node1.Broadcast(transpStatusMsg)
 	require.NoError(t, err)
 
 	time.Sleep(time.Second * 1)
@@ -92,16 +97,16 @@ func Test_HandleDNSReadMessage(t *testing.T) {
 	msg = types.TransactionMessage{
 		Tx: nameFirstUpdateTx,
 	}
-	transpStatusMsg, err = node.GetRegistry().MarshalMessage(&msg)
+	transpStatusMsg, err = node1.GetRegistry().MarshalMessage(&msg)
 
 	// Send DNSReadRequestMessage
-	err = node.Broadcast(transpStatusMsg)
+	err = node1.Broadcast(transpStatusMsg)
 	require.NoError(t, err)
 
 	time.Sleep(time.Second * 1)
 
 	// Check if DNSReadReplyMessage was received
-	ins := node.GetIns()
+	ins := node1.GetIns()
 	require.Len(t, ins, 1)
 
 	pkt := ins[0]
