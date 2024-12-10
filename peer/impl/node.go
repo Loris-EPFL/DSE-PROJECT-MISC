@@ -19,7 +19,10 @@ type node struct {
 	wg             sync.WaitGroup
 	sequenceNumber sequenceNumber
 
+	currentHeight uint
+
 	stopCh                chan struct{}
+	newTxCh               chan struct{}
 	ackChannel            SafeMap[string, chan *types.AckMessage]
 	directPeers           SafeMap[string, struct{}]
 	receivedSeq           SafeMap[string, uint]
@@ -49,12 +52,14 @@ func NewPeer(conf peer.Configuration) peer.Peer {
 		handledDataRequests:   NewSafeMap[string, string](),
 		handledSearchRequests: NewSafeMap[string, string](),
 		stopCh:                make(chan struct{}),
+		newTxCh:               make(chan struct{}),
 		ackChannel:            NewSafeMap[string, chan *types.AckMessage](),
 		dataReplyChan:         NewSafeMap[string, chan *types.DataReplyMessage](),
 		searchReplyChan:       NewSafeMap[string, chan *types.SearchReplyMessage](),
 		catalog:               NewSafeCatalog(),
 		UTXOSet:               NewSafeMap[string, types.UTXO](),
 		mempool:               NewSafeMap[string, types.Transaction](),
+		currentHeight:         1,
 	}
 
 	//initialize auxiliary structures
@@ -77,6 +82,7 @@ func NewPeer(conf peer.Configuration) peer.Peer {
 	n.conf.MessageRegistry.RegisterMessageCallback(types.DNSReadRequestMessage{}, n.handleDNSReadRequestMessage)
 	n.conf.MessageRegistry.RegisterMessageCallback(types.DNSReadReplyMessage{}, n.handleDNSReadReplyMessage)
 	n.conf.MessageRegistry.RegisterMessageCallback(types.TransactionMessage{}, n.handleTransactionMessage)
+	n.conf.MessageRegistry.RegisterMessageCallback(types.BlockMessage{}, n.handleBlockMessage)
 
 	return n
 }
@@ -101,6 +107,11 @@ func (n *node) Start() error {
 		n.wg.Add(1)
 		go n.runHeartBeatMechanism()
 	}
+
+	n.createGenesisBlock()
+
+	//start the miner
+	n.startMIner()
 
 	return nil
 }

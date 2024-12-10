@@ -569,7 +569,41 @@ func (n *node) handleTransactionMessage(msg types.Message, pkt transport.Packet)
 
 	// If valid, add to mempool
 	n.mempool.Add(txMsg.Tx.ID, txMsg.Tx)
-
 	log.Info().Msgf("Received transaction %s and added it to mempool", txMsg.Tx.ID)
+
+	select {
+	case n.newTxCh <- struct{}{}:
+	default:
+	}
+
 	return nil
+}
+
+func (n *node) handleBlockMessage(msg types.Message, pkt transport.Packet) error {
+
+	log := n.getLogger()
+	blockMsg, ok := msg.(*types.BlockMessage)
+
+	if !ok {
+		return xerrors.Errorf("expected BlockMessage, got %T", msg)
+	}
+
+	// Validate the block
+	err := n.validateBlock(&blockMsg.Block)
+	if err != nil {
+		log.Error().Err(err).Msg("Invalid block received")
+		return err
+	}
+
+	// Add the block to the blockchain
+	err = n.addBlockToBlockchain(&blockMsg.Block)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to add block to blockchain")
+		return err
+	}
+
+	n.removeTxsFromMempool(blockMsg.Block.Transactions)
+	log.Info().Msgf("Received block %s and added it to the blockchain", blockMsg.Block.Hash)
+	return nil
+
 }

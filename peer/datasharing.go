@@ -67,8 +67,6 @@ type DataSharing interface {
 	// found.
 	SearchFirst(pattern regexp.Regexp, conf ExpandingRing) (name string, err error)
 
-	//DNS Store
-	GetDNSStoreEntry(domain string) DNSEntry // Add this line to include DNSStore
 }
 
 // Catalog tells, for a given piece of data referenced by a key, a bag of peers

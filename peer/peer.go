@@ -80,6 +80,9 @@ type Configuration struct {
 	// retries to send a prepare when it doesn't get enough promises or accepts.
 	// Default: 5s.
 	PaxosProposerRetry time.Duration
+
+	//Difficulty is the number of leading zeros in the hash of the block
+	PowBits uint
 }
 
 // Backoff describes parameters for a backoff algorithm. The initial time must
