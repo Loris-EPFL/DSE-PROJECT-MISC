@@ -2,15 +2,42 @@ package standard
 
 import (
 	"encoding/json"
+	"os"
 	"reflect"
 	"sync"
 	"time"
 
+	"github.com/rs/zerolog"
 	"go.dedis.ch/cs438/registry"
 	"go.dedis.ch/cs438/transport"
 	"go.dedis.ch/cs438/types"
 	"golang.org/x/xerrors"
 )
+
+var (
+	defaultLevel = zerolog.InfoLevel
+	logout       = zerolog.ConsoleWriter{
+		Out:        os.Stdout,
+		TimeFormat: time.RFC3339,
+	}
+	logger zerolog.Logger
+)
+
+// Global logger function
+func init() {
+	// defaultLevel can be changed to set the desired level of the logger
+	defaultLevel = zerolog.InfoLevel
+
+	if os.Getenv("GLOG") == "no" {
+		defaultLevel = zerolog.Disabled
+	}
+
+	logger = zerolog.New(logout).
+		Level(defaultLevel).
+		With().Timestamp().Logger().
+		With().Caller().Logger().
+		With().Str("role", "standard").Logger()
+}
 
 // NewRegistry returns a new initialized registry.
 func NewRegistry() registry.Registry {
@@ -79,6 +106,7 @@ func (r *Registry) ProcessPacket(pkt transport.Packet) error {
 	r.msgs.add(msg)
 
 	res := <-wait
+	logger.Info().Msgf("res: %v", res)
 	if res != nil {
 		return xerrors.Errorf("failed to call handler: %v", res)
 	}
