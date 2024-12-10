@@ -33,9 +33,8 @@ type node struct {
 	catalog               SafeCatalog
 
 	//Added DNS store
-	dnsStore peer.SafeMap[string, peer.DNSEntry]
-
-	hashStore peer.SafeMap[string, string]
+	UTXOSet SafeMap[string, types.UTXO]        //Mapping from Domain to UTXO
+	mempool SafeMap[string, types.Transaction] //Mapping from Transaction ID to Transaction
 }
 
 func NewPeer(conf peer.Configuration) peer.Peer {
@@ -54,8 +53,8 @@ func NewPeer(conf peer.Configuration) peer.Peer {
 		dataReplyChan:         NewSafeMap[string, chan *types.DataReplyMessage](),
 		searchReplyChan:       NewSafeMap[string, chan *types.SearchReplyMessage](),
 		catalog:               NewSafeCatalog(),
-		dnsStore:              peer.NewSafeMap[string, peer.DNSEntry](),
-		hashStore:             peer.NewSafeMap[string, string](),
+		UTXOSet:               NewSafeMap[string, types.UTXO](),
+		mempool:               NewSafeMap[string, types.Transaction](),
 	}
 
 	//initialize auxiliary structures
@@ -76,11 +75,8 @@ func NewPeer(conf peer.Configuration) peer.Peer {
 	//Added DNS messages handlers
 	// Register the callback for DNS messages
 	n.conf.MessageRegistry.RegisterMessageCallback(types.DNSReadRequestMessage{}, n.handleDNSReadRequestMessage)
-	n.conf.MessageRegistry.RegisterMessageCallback(types.DNSUpdateMessage{}, n.handleDNSUpdateMessage)
-	n.conf.MessageRegistry.RegisterMessageCallback(types.DNSRegisterMessageFirstUpdate{}, n.handleDNSRegisterMessageFirstUpdate)
-	n.conf.MessageRegistry.RegisterMessageCallback(types.DNSRegisterMessageNew{}, n.handleDNSRegisterMessageNew)
-
 	n.conf.MessageRegistry.RegisterMessageCallback(types.DNSReadReplyMessage{}, n.handleDNSReadReplyMessage)
+	n.conf.MessageRegistry.RegisterMessageCallback(types.TransactionMessage{}, n.handleTransactionMessage)
 
 	return n
 }

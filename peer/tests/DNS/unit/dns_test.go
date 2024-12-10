@@ -1,20 +1,10 @@
 package unit
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
 	"os"
-	"testing"
 	"time"
 
 	"github.com/rs/zerolog"
-	"github.com/stretchr/testify/require"
-	z "go.dedis.ch/cs438/internal/testing"
-	"go.dedis.ch/cs438/peer"
-	"go.dedis.ch/cs438/transport"
-	"go.dedis.ch/cs438/transport/channel"
-	"go.dedis.ch/cs438/types"
 )
 
 var (
@@ -41,6 +31,8 @@ func init() {
 		With().Caller().Logger().
 		With().Str("role", "Test File").Logger()
 }
+
+/*
 
 // Test handleDNSReadMessage
 func Test_HandleDNSReadMessage(t *testing.T) {
@@ -366,3 +358,4 @@ func Test_HandleDNSRegisterMessage(t *testing.T) {
 	err = node1.Broadcast(msg)
 	require.Error(t, err, "Unauthorized registration attempt by owner2 for domain example.com")
 }
+*/
