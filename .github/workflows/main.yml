@@ -65,6 +65,11 @@ jobs:
       actions: read
       pull-requests: write
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Ensures full history is fetched if needed
+
       - name: Generate Code Coverage Report
         uses: fgrosse/go-coverage-report@v1.2.0
         with:
