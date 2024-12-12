@@ -83,7 +83,7 @@ jobs:
         uses: tj-actions/verify-changed-files@v20
         id: verify-changed-files
         with:
-          files: README.md
+          files: docs/README.md
 
       # Step 5: Commit changes if README.md was updated
       - name: Commit changes
