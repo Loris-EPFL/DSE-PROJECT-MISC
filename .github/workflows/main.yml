@@ -74,7 +74,7 @@ jobs:
           # Optional Inputs:
           color: 'brightgreen'  # Can be 'green', 'yellow', 'red', or any color code
           link: 'https://github.com/cs438-epfl/2024-proj-namecoin-group-33'  # URL to link the badge to
-          target: 'README.md'  # File to update with the badge
+          target: 'docs/README.md'  # File to update with the badge
           text: 'Coverage'  # Text on the left side of the badge
           # You can set other inputs as needed
 
@@ -91,7 +91,7 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add README.md
+          git add docs/README.md
           git commit -m "chore: Updated coverage badge."
 
       # Step 6: Push changes back to the repository
