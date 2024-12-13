@@ -62,6 +62,8 @@ func (n *node) broadCastRoutine(rumor *types.RumorsMessage) {
 
 	neighbors := n.getNeighbors()
 
+	log.Info().Msgf("Neighbors: %v", neighbors)
+
 	randomNeighbor := getRandom(neighbors)
 
 	if len(randomNeighbor) == 0 {

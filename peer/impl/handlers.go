@@ -571,10 +571,9 @@ func (n *node) handleTransactionMessage(msg types.Message, pkt transport.Packet)
 	n.mempool.Add(txMsg.Tx.ID, txMsg.Tx)
 	log.Info().Msgf("Received transaction %s and added it to mempool", txMsg.Tx.ID)
 
-	select {
-	case n.newTxCh <- struct{}{}:
-	default:
-	}
+	n.newTxCh <- struct{}{}
+
+	log.Info().Msg("New transaction received, notifying mining routine")
 
 	return nil
 }
@@ -603,7 +602,11 @@ func (n *node) handleBlockMessage(msg types.Message, pkt transport.Packet) error
 	}
 
 	n.removeTxsFromMempool(blockMsg.Block.Transactions)
-	log.Info().Msgf("Received block %s and added it to the blockchain", blockMsg.Block.Hash)
+	log.Info().Msgf("Received block %d and added it to the blockchain", blockMsg.Block.Nonce)
+	log.Info().Msgf("I have %d blocks in the blockchain", n.getCurrentNonce())
+
+	log.Info().Msgf("UTXO Set: %v", n.UTXOSet)
+
 	return nil
 
 }

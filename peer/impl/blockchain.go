@@ -13,12 +13,12 @@ import (
 
 func (n *node) computeBlockHash(block *types.Block) []byte {
 
-	// Hash is SHA256(Nonce || []Txs || Prevhash)
+	// Hash is SHA256(Challenge || []Txs || Prevhash)
 	// use crypto/sha256
-	// Concatenate the nonce, previous block hash, and all transactions
+	// Concatenate the Challenge, previous block hash, and all transactions
 	// into a single byte slice
 
-	indexStr := strconv.Itoa(int(block.Nonce))
+	indexStr := strconv.Itoa(int(block.Challenge))
 	var txData []byte
 	for _, tx := range block.Transactions {
 		txBytes, err := tx.Marshal()
@@ -49,14 +49,12 @@ func (n *node) addBlockToBlockchain(block *types.Block) error {
 			case types.NameNew:
 				// NameNew: produce UTXO with hashed domain
 				newUTXO := types.UTXO{
-					TransactionID: tx.ID,
-					Index:         0,
-					DomainName:    tx.Output.DomainName, // This should be the hashed domain
-					IP:            tx.Output.IP,
-					Owner:         tx.Output.Owner,
-					Expiration:    tx.Output.Expiration,
+					DomainName: tx.Output.DomainName, // This should be the hashed domain
+					IP:         tx.Output.IP,
+					Owner:      tx.Output.Owner,
+					Expiration: tx.Output.Expiration,
 				}
-				n.addUTXO(tx.ID, newUTXO)
+				n.addUTXO(tx.Output.DomainName, newUTXO)
 
 			case types.NameFirstUpdate:
 				// NameFirstUpdate: consume the NameNew UTXO
@@ -65,18 +63,18 @@ func (n *node) addBlockToBlockchain(block *types.Block) error {
 					log.Error().Err(err).Any("inputUTXO", inputUTXO).Msg("Input UTXO not found for NameFirstUpdate")
 					return xerrors.Errorf("Input UTXO not found for NameFirstUpdate")
 				}
-				n.removeUTXO(tx.ID)
 
+				log.Info().Msgf("Removing UTXO: %s", tx.Input.DomainName)
+
+				n.removeUTXO(tx.Input.DomainName)
 				// Produce a new UTXO with the revealed domain name
 				newUTXO := types.UTXO{
-					TransactionID: tx.ID,
-					Index:         0,
-					DomainName:    tx.Output.DomainName, // Now the actual domain name
-					IP:            tx.Output.IP,
-					Owner:         tx.Output.Owner,
-					Expiration:    tx.Output.Expiration,
+					DomainName: tx.Output.DomainName, // Now the actual domain name
+					IP:         tx.Output.IP,
+					Owner:      tx.Output.Owner,
+					Expiration: tx.Output.Expiration,
 				}
-				n.addUTXO(tx.ID, newUTXO)
+				n.addUTXO(tx.Output.DomainName, newUTXO)
 
 			case types.NameUpdate:
 				// NameUpdate: consume existing domain UTXO
@@ -85,18 +83,16 @@ func (n *node) addBlockToBlockchain(block *types.Block) error {
 					log.Error().Err(err).Any("inputUTXO", inputUTXO).Msg("Input UTXO not found for NameUpdate")
 					return xerrors.Errorf("Input UTXO not found for NameUpdate")
 				}
-				n.removeUTXO(tx.ID)
+				n.removeUTXO(tx.Input.DomainName)
 
 				// Produce updated UTXO
 				newUTXO := types.UTXO{
-					TransactionID: tx.ID,
-					Index:         0,
-					DomainName:    tx.Output.DomainName,
-					IP:            tx.Output.IP,
-					Owner:         tx.Output.Owner,
-					Expiration:    tx.Output.Expiration,
+					DomainName: tx.Output.DomainName,
+					IP:         tx.Output.IP,
+					Owner:      tx.Output.Owner,
+					Expiration: tx.Output.Expiration,
 				}
-				n.addUTXO(tx.ID, newUTXO)
+				n.addUTXO(tx.Output.DomainName, newUTXO)
 
 			default:
 			}
@@ -110,8 +106,13 @@ func (n *node) addBlockToBlockchain(block *types.Block) error {
 	bcStore.Set(hashHex, serializedBlock)
 	bcStore.Set(storage.LastBlockKey, block.Hash)
 
-	log.Info().Msg("Block accepted and UTXO set updated successfully")
+	// Update the current height
+	n.currentHeight++
 
+	log.Info().Msgf("Block added to blockchain: %s", hashHex)
+	log.Info().Msg("Block added and UTXO set updated successfully")
+
+	n.PrintAllNonces()
 	return nil
 }
 
@@ -135,6 +136,7 @@ func (n *node) validateBlock(block *types.Block) error {
 func (n *node) validateTransaction(tx *types.Transaction) error {
 	// don't forget to add fees and tokens check
 	// Common checks
+	log := n.getLogger()
 	if tx.ID == "" {
 		return xerrors.New("Transaction ID is empty")
 	}
@@ -145,6 +147,7 @@ func (n *node) validateTransaction(tx *types.Transaction) error {
 			return xerrors.New("Hashed domain is empty in NameNew")
 		}
 
+		log.Info().Msgf("Domain name: %s", tx.HashedDomain)
 		// Check if domain already exists by scanning UTXO
 		// This prevents duplicate domain claims
 		utxoSet := n.UTXOSet.ToMap()
@@ -168,8 +171,13 @@ func (n *node) validateTransaction(tx *types.Transaction) error {
 
 		// Verify that the domain revealed matches the hashed domain in NameNew
 		hashed := hashDomain(tx.Salt, tx.PlainDomain)
-		if hashed != inputUTXO.DomainName {
-			return xerrors.New("NameFirstUpdate reveal does not match hashed domain")
+
+		nameNewUtxo, found, err := n.findUTXO(types.UTXO{DomainName: hashed})
+		log.Debug().Msgf("NameNew UTXO: %v", nameNewUtxo)
+		log.Info().Any("namenew hashed domain", nameNewUtxo.DomainName).Msgf("Computed hashed domain: %s", hashed)
+
+		if !found {
+			return err
 		}
 
 		// Ensure output domain is the revealed plaintext domain
@@ -186,6 +194,7 @@ func (n *node) validateTransaction(tx *types.Transaction) error {
 		if tx.Output.Expiration.Before(time.Now()) {
 			return xerrors.New("NameFirstUpdate expiration must be in the future")
 		}
+
 	case types.NameUpdate:
 		// Validate NameUpdate
 		inputUTXO, found, err := n.findUTXO(tx.Input)
@@ -211,7 +220,7 @@ func (n *node) validateTransaction(tx *types.Transaction) error {
 		return xerrors.New("Invalid transaction type")
 
 	}
-	return xerrors.New("Transaction validation failed")
+	return nil
 }
 
 // * auxiliary functions
@@ -219,21 +228,21 @@ func (n *node) findUTXO(utxoToFind types.UTXO) (types.UTXO, bool, error) {
 	utxoSet := n.UTXOSet.ToMap()
 
 	for _, utxo := range utxoSet {
-		if utxo.DomainName == utxoToFind.DomainName {
+		if utxo.DomainName == utxoToFind.DomainName && utxo.Owner == utxoToFind.Owner {
 			return utxo, true, nil
 		}
 	}
 	return types.UTXO{}, false, xerrors.New("Input UTXO not found")
 }
 
-func (n *node) addUTXO(txID string, utxo types.UTXO) {
+func (n *node) addUTXO(domain string, utxo types.UTXO) {
 	// Just add it to the UTXO set
-	n.UTXOSet.Add(txID, utxo)
+	n.UTXOSet.Add(domain, utxo)
 
 }
 
-func (n *node) removeUTXO(txID string) {
-	n.UTXOSet.Remove(txID)
+func (n *node) removeUTXO(domainName string) {
+	n.UTXOSet.Remove(domainName)
 }
 
 func hashDomain(salt, domain string) string {
@@ -254,7 +263,7 @@ func (n *node) createGenesisBlock() *types.Block {
 	block := &types.Block{
 
 		PrevBlockHash: hash[:],
-		Nonce:         0,
+		Nonce:         1,
 		Transactions:  []*types.Transaction{},
 	}
 
@@ -264,3 +273,6 @@ func (n *node) createGenesisBlock() *types.Block {
 
 	return block
 }
+
+//4891456abc287282f533534c60191e329cfe4fa5cd91c21ffc959a6d7c9c2edb
+//4891456abc287282f533534c60191e329cfe4fa5cd91c21ffc959a6d7c9c2edb

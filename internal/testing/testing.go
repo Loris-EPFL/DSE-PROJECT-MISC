@@ -149,6 +149,7 @@ type configTemplate struct {
 	paxosThreshold     func(uint) int
 	paxosID            uint
 	paxosProposerRetry time.Duration
+	PowBits            int
 }
 
 func newConfigTemplate() configTemplate {
@@ -289,6 +290,12 @@ func WithPaxosThreshold(f func(uint) int) Option {
 func WithPaxosProposerRetry(d time.Duration) Option {
 	return func(ct *configTemplate) {
 		ct.paxosProposerRetry = d
+	}
+}
+
+func WithPowBits(bits int) Option {
+	return func(ct *configTemplate) {
+		ct.PowBits = bits
 	}
 }
 

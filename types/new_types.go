@@ -98,8 +98,6 @@ type Transaction struct {
 
 // UTXO represents an unspent transaction output.
 type UTXO struct {
-	TransactionID string
-	Index         int
 	DomainName    string // This could be hashed domain for NameNew and actual domain for NameFirstUpdate/Update
 	IP            string
 	Owner         string

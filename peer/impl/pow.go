@@ -1,6 +1,9 @@
 package impl
 
 import (
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
 	"math/big"
 	"time"
 
@@ -50,6 +53,7 @@ func (n *node) attemptToMine() {
 	stopMiningCh := make(chan struct{})
 
 	n.wg.Add(1)
+	log.Debug().Msgf("Entering Attempting to mine routine")
 	go func() {
 		defer n.wg.Done()
 		for {
@@ -57,11 +61,15 @@ func (n *node) attemptToMine() {
 			select {
 			case <-n.stopCh:
 				close(stopMiningCh)
+				return
 			case <-n.newTxCh:
 				//if a transaction arrives while mining
 				if len(txs) < MaxTxPerBlock {
 					close(stopMiningCh)
+					return
 				}
+			default:
+				time.Sleep(time.Second)
 			}
 		}
 	}()
@@ -106,13 +114,17 @@ func (n *node) attemptToMine() {
 	}
 
 	n.removeTxsFromMempool(minedBlock.Transactions)
-
 }
 
 func (n *node) createCandidateBlock(txs []types.Transaction) *types.Block {
 
+	log := n.getLogger()
+	log.Info().Msg("Creating candidate block")
+	log.Info().Msgf("Number of transactions: %d", len(txs))
+	log.Info().Msgf("Current nonce: %d", n.getCurrentNonce())
 	prevHash := n.getLastBlockHash()
 	nonce := n.getCurrentNonce()
+
 	newNonce := nonce + 1
 	block := &types.Block{
 		PrevBlockHash: prevHash,
@@ -131,12 +143,11 @@ func txSliceToPtr(txs []types.Transaction) []*types.Transaction {
 	return res
 }
 
-
 func (n *node) mineBlock(block *types.Block, stopMiningCh chan struct{}) (*types.Block, error) {
 	log := n.getLogger()
 
 	challenge := 0
-	target := n.computeTarget(int(n.conf.PowBits))
+	target := n.computeTarget(0x1f111111)
 
 	for {
 		select {
@@ -146,6 +157,7 @@ func (n *node) mineBlock(block *types.Block, stopMiningCh chan struct{}) (*types
 		case <-n.stopCh:
 			return nil, xerrors.New("Node shutting down")
 		default:
+
 			block.Challenge = challenge
 			hash := n.computeBlockHash(block)
 			block.Hash = hash
@@ -153,6 +165,7 @@ func (n *node) mineBlock(block *types.Block, stopMiningCh chan struct{}) (*types
 				return block, nil
 			}
 			challenge++
+
 		}
 	}
 }
@@ -200,34 +213,99 @@ func (n *node) meetsTarget(hash []byte, target *big.Int) bool {
 	return hashValue.Cmp(target) <= 0
 }
 
-
-
-// computeTarget computes the target given bits
 func (n *node) computeTarget(bits int) *big.Int {
+	log := n.getLogger()
+	log.Debug().Msgf("Computing target with bits %d", bits)
 
-	
-	exponent := uint8(bits >> 24)
-	coefficient := big.NewInt(int64(bits & 0xffffff))
+	// Extract exponent (high byte) and coefficient (low 3 bytes)
+	exponent := uint8(bits >> 24)                     // High byte of `bits`
+	coefficient := big.NewInt(int64(bits & 0xFFFFFF)) // Low 24 bits
 
 	target := new(big.Int)
-	// target = coefficient * 256^(exponent-3)
-	exp := exponent - 3
 	if exponent <= 3 {
-		// If exponent <= 3, shift the coefficient right
-		// Because if exponent < 3, we have a situation where
-		// we just shift coefficient down
+		// Shift coefficient to the right for small exponents
 		shift := (3 - exponent) * 8
 		target.Rsh(coefficient, uint(shift))
 	} else {
-		// If exponent > 3, shift left
-		shift := (exp * 8)
+		// Shift coefficient to the left for large exponents
+		shift := (exponent - 3) * 8
 		target.Lsh(coefficient, uint(shift))
 	}
 
+	// Ensure the target is not zero
+	if target.Sign() == 0 {
+		log.Error().Msg("Computed target is zero. Check the bits input.")
+	}
+
+	log.Debug().Msgf("Computed target: %x", target)
 	return target
 }
 
 func (n *node) getCurrentNonce() uint64 {
 	// dummy implementation
 	return uint64(n.currentHeight)
+}
+
+// PrintAllNonces prints the nonce of each block in the blockchain
+func (n *node) PrintAllNonces() {
+
+	log := n.getLogger()
+
+	bcStore := n.conf.Storage.GetBlockchainStore()
+
+	// Get the last block's hash
+	lastHash := bcStore.Get(storage.LastBlockKey)
+	if len(lastHash) == 0 {
+		log.Println("No blocks found in the blockchain store.")
+		return
+	}
+
+	currentHash := lastHash
+	blockCount := 0
+
+	for {
+		// Convert the hash to a hexadecimal string to use as the key
+		key := hex.EncodeToString(currentHash)
+
+		// Retrieve the block data
+		blockData := bcStore.Get(key)
+		if len(blockData) == 0 {
+			log.Printf("Block data not found for hash: %s\n", key)
+			break
+		}
+
+		// Deserialize the block (assuming JSON serialization)
+		var block types.Block
+		err := json.Unmarshal(blockData, &block)
+		if err != nil {
+			log.Printf("Failed to deserialize block %s: %v\n", key, err)
+			break
+		}
+
+		// Print the nonce
+		fmt.Printf("Block %d - Hash: %s\n", block.Nonce, key)
+		blockCount++
+
+		// Check if we've reached the genesis block (assuming PrevBlockHash is all zeros or empty)
+		if len(block.PrevBlockHash) == 0 || isAllZeros(block.PrevBlockHash) {
+			break
+		}
+
+		// Move to the previous block
+		currentHash = block.PrevBlockHash
+	}
+
+	if blockCount == 0 {
+		fmt.Println("No blocks to display.")
+	}
+}
+
+// isAllZeros checks if the given byte slice consists entirely of zero bytes
+func isAllZeros(data []byte) bool {
+	for _, b := range data {
+		if b != 0 {
+			return false
+		}
+	}
+	return true
 }

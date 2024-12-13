@@ -23,6 +23,7 @@ type node struct {
 
 	stopCh                chan struct{}
 	newTxCh               chan struct{}
+
 	ackChannel            SafeMap[string, chan *types.AckMessage]
 	directPeers           SafeMap[string, struct{}]
 	receivedSeq           SafeMap[string, uint]
@@ -52,14 +53,16 @@ func NewPeer(conf peer.Configuration) peer.Peer {
 		handledDataRequests:   NewSafeMap[string, string](),
 		handledSearchRequests: NewSafeMap[string, string](),
 		stopCh:                make(chan struct{}),
-		newTxCh:               make(chan struct{}),
-		ackChannel:            NewSafeMap[string, chan *types.AckMessage](),
-		dataReplyChan:         NewSafeMap[string, chan *types.DataReplyMessage](),
-		searchReplyChan:       NewSafeMap[string, chan *types.SearchReplyMessage](),
-		catalog:               NewSafeCatalog(),
-		UTXOSet:               NewSafeMap[string, types.UTXO](),
-		mempool:               NewSafeMap[string, types.Transaction](),
-		currentHeight:         1,
+		newTxCh:               make(chan struct{}, 100),
+
+
+		ackChannel:      NewSafeMap[string, chan *types.AckMessage](),
+		dataReplyChan:   NewSafeMap[string, chan *types.DataReplyMessage](),
+		searchReplyChan: NewSafeMap[string, chan *types.SearchReplyMessage](),
+		catalog:         NewSafeCatalog(),
+		UTXOSet:         NewSafeMap[string, types.UTXO](),
+		mempool:         NewSafeMap[string, types.Transaction](),
+		currentHeight:   0,
 	}
 
 	//initialize auxiliary structures
@@ -120,6 +123,7 @@ func (n *node) Start() error {
 func (n *node) Stop() error {
 	log := n.getLogger()
 	close(n.stopCh)
+	close(n.newTxCh)
 	log.Info().Msg("WAITING FOR ROUTINE TO FINISH")
 	n.wg.Wait()
 	log.Info().Msg("ALL ROUTINES FINISHED")
