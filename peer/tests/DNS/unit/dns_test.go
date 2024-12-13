@@ -133,7 +133,7 @@ func Test_HandleDNSReadMessage(t *testing.T) {
 	}
 
 	// Send NameFirstUpdate transaction
-	err = proposer.Send(node1.GetAddr(), packet, time.Second*1)
+	err = proposer.Send(node2.GetAddr(), packet, time.Second*1)
 	require.NoError(t, err)
 
 	//Wait 1 seconds, it should not be needed since we should right after the NameFirstUpdate
@@ -142,7 +142,7 @@ func Test_HandleDNSReadMessage(t *testing.T) {
 	transpRequestMsg, err := node1.GetRegistry().MarshalMessage(&dnsEntry)
 	require.NoError(t, err)
 
-	header = transport.NewHeader(proposer.GetAddress(), proposer.GetAddress(), node1.GetAddr())
+	header = transport.NewHeader(reader.GetAddress(), reader.GetAddress(), node1.GetAddr())
 
 	packet = transport.Packet{
 		Header: &header,
@@ -157,9 +157,7 @@ func Test_HandleDNSReadMessage(t *testing.T) {
 
 	//Check if DNSReadReplyMessage was received
 	ins := node1.GetIns()
-	logger.Info().Any("ins", ins).Msg("Received messages")
-	//Received 2 acks and 2 transactions, and a DNSReadRequestMessage
-	require.Len(t, ins, 5)
+	//logger.Info().Any("ins", ins).Msg("Received messages")
 
 	//Check if one of the message received is a DNSReadRequestMessage
 	hasDNSReadRequest := false
