@@ -5,14 +5,30 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
+	"os"
 	"time"
 
+	"github.com/rs/zerolog"
 	"go.dedis.ch/cs438/storage"
 	"go.dedis.ch/cs438/types"
 	"golang.org/x/xerrors"
 )
 
-const MaxTxPerBlock = 3
+// Global logger function
+func init() {
+	// defaultLevel can be changed to set the desired level of the logger
+	defaultLevel = zerolog.InfoLevel
+
+	if os.Getenv("GLOG") == "no" {
+		defaultLevel = zerolog.Disabled
+	}
+
+	logger = zerolog.New(logout).
+		Level(defaultLevel).
+		With().Timestamp().Logger().
+		With().Caller().Logger().
+		With().Str("role", "pow.go").Logger()
+}
 
 func (n *node) startMIner() {
 	n.wg.Add(1)
@@ -21,13 +37,13 @@ func (n *node) startMIner() {
 
 func (n *node) minerRoutine() {
 	defer n.wg.Done()
-	log := n.getLogger()
-	log.Info().Msg("Starting miner routine")
+
+	logger.Info().Msg("Starting miner routine")
 
 	for {
 		select {
 		case <-n.stopCh:
-			log.Info().Msg("Stopping miner routine")
+			logger.Info().Msg("Stopping miner routine")
 			return
 		case <-n.newTxCh:
 			n.attemptToMine()
@@ -38,13 +54,13 @@ func (n *node) minerRoutine() {
 }
 
 func (n *node) attemptToMine() {
-	log := n.getLogger()
-	log.Info().Msg("Attempting to mine a new block")
 
-	txs := n.getTxsFromMempool(MaxTxPerBlock)
+	logger.Info().Msg("Attempting to mine a new block")
+
+	txs := n.getTxsFromMempool(n.MaxTxPerBlock)
 
 	if len(txs) == 0 {
-		log.Info().Msg("No transactions to mine")
+		logger.Info().Msg("No transactions to mine")
 		return
 	}
 
@@ -53,7 +69,7 @@ func (n *node) attemptToMine() {
 	stopMiningCh := make(chan struct{})
 
 	n.wg.Add(1)
-	log.Debug().Msgf("Entering Attempting to mine routine")
+	logger.Debug().Msgf("Entering Attempting to mine routine")
 	go func() {
 		defer n.wg.Done()
 		for {
@@ -64,7 +80,7 @@ func (n *node) attemptToMine() {
 				return
 			case <-n.newTxCh:
 				//if a transaction arrives while mining
-				if len(txs) < MaxTxPerBlock {
+				if len(txs) < int(n.MaxTxPerBlock) {
 					close(stopMiningCh)
 					return
 				}
@@ -76,7 +92,7 @@ func (n *node) attemptToMine() {
 
 	minedBlock, err := n.mineBlock(candidateBlock, stopMiningCh)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to mine block")
+		logger.Error().Err(err).Msg("Failed to mine block")
 		return
 	}
 
@@ -85,7 +101,7 @@ func (n *node) attemptToMine() {
 		return
 	}
 
-	log.Info().Msg("Block mined successfully")
+	logger.Info().Msg("Block mined successfully")
 
 	//Create block message
 	blockMsg := types.BlockMessage{
@@ -95,21 +111,21 @@ func (n *node) attemptToMine() {
 	transpBlockMsg, err := n.conf.MessageRegistry.MarshalMessage(&blockMsg)
 
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to marshal block message")
+		logger.Error().Err(err).Msg("Failed to marshal block message")
 		return
 	}
 
 	//Broadcast the block
 	err = n.Broadcast(transpBlockMsg)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to broadcast block")
+		logger.Error().Err(err).Msg("Failed to broadcast block")
 		return
 	}
 
 	//Store the block in local blockchain storage
 	err = n.addBlockToBlockchain(minedBlock)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to store block in blockchain")
+		logger.Error().Err(err).Msg("Failed to store block in blockchain")
 		return
 	}
 
@@ -118,10 +134,9 @@ func (n *node) attemptToMine() {
 
 func (n *node) createCandidateBlock(txs []types.Transaction) *types.Block {
 
-	log := n.getLogger()
-	log.Info().Msg("Creating candidate block")
-	log.Info().Msgf("Number of transactions: %d", len(txs))
-	log.Info().Msgf("Current nonce: %d", n.getCurrentNonce())
+	logger.Info().Msg("Creating candidate block")
+	logger.Info().Msgf("Number of transactions: %d", len(txs))
+	logger.Info().Msgf("Current nonce: %d", n.getCurrentNonce())
 	prevHash := n.getLastBlockHash()
 	nonce := n.getCurrentNonce()
 
@@ -144,7 +159,6 @@ func txSliceToPtr(txs []types.Transaction) []*types.Transaction {
 }
 
 func (n *node) mineBlock(block *types.Block, stopMiningCh chan struct{}) (*types.Block, error) {
-	log := n.getLogger()
 
 	challenge := 0
 	target := n.computeTarget(0x1f111111)
@@ -152,7 +166,7 @@ func (n *node) mineBlock(block *types.Block, stopMiningCh chan struct{}) (*types
 	for {
 		select {
 		case <-stopMiningCh:
-			log.Info().Msg("Mining stopped due to new transactions")
+			logger.Info().Msg("Mining stopped due to new transactions")
 			return nil, nil
 		case <-n.stopCh:
 			return nil, xerrors.New("Node shutting down")
@@ -171,10 +185,10 @@ func (n *node) mineBlock(block *types.Block, stopMiningCh chan struct{}) (*types
 }
 
 // getMempoolTransactions returns up to 'limit' transactions from mempool
-func (n *node) getTxsFromMempool(limit int) []types.Transaction {
+func (n *node) getTxsFromMempool(limit uint) []types.Transaction {
 	m := n.mempool.ToMap()
 	txs := make([]types.Transaction, 0, len(m))
-	count := 0
+	count := uint(0)
 	for _, tx := range m {
 		txs = append(txs, tx)
 		count++
@@ -214,8 +228,8 @@ func (n *node) meetsTarget(hash []byte, target *big.Int) bool {
 }
 
 func (n *node) computeTarget(bits int) *big.Int {
-	log := n.getLogger()
-	log.Debug().Msgf("Computing target with bits %d", bits)
+
+	logger.Debug().Msgf("Computing target with bits %d", bits)
 
 	// Extract exponent (high byte) and coefficient (low 3 bytes)
 	exponent := uint8(bits >> 24)                     // High byte of `bits`
@@ -234,10 +248,10 @@ func (n *node) computeTarget(bits int) *big.Int {
 
 	// Ensure the target is not zero
 	if target.Sign() == 0 {
-		log.Error().Msg("Computed target is zero. Check the bits input.")
+		logger.Error().Msg("Computed target is zero. Check the bits input.")
 	}
 
-	log.Debug().Msgf("Computed target: %x", target)
+	logger.Debug().Msgf("Computed target: %x", target)
 	return target
 }
 
@@ -249,14 +263,12 @@ func (n *node) getCurrentNonce() uint64 {
 // PrintAllNonces prints the nonce of each block in the blockchain
 func (n *node) PrintAllNonces() {
 
-	log := n.getLogger()
-
 	bcStore := n.conf.Storage.GetBlockchainStore()
 
 	// Get the last block's hash
 	lastHash := bcStore.Get(storage.LastBlockKey)
 	if len(lastHash) == 0 {
-		log.Println("No blocks found in the blockchain store.")
+		logger.Println("No blocks found in the blockchain store.")
 		return
 	}
 
@@ -270,7 +282,7 @@ func (n *node) PrintAllNonces() {
 		// Retrieve the block data
 		blockData := bcStore.Get(key)
 		if len(blockData) == 0 {
-			log.Printf("Block data not found for hash: %s\n", key)
+			logger.Printf("Block data not found for hash: %s\n", key)
 			break
 		}
 
@@ -278,7 +290,7 @@ func (n *node) PrintAllNonces() {
 		var block types.Block
 		err := json.Unmarshal(blockData, &block)
 		if err != nil {
-			log.Printf("Failed to deserialize block %s: %v\n", key, err)
+			logger.Printf("Failed to deserialize block %s: %v\n", key, err)
 			break
 		}
 

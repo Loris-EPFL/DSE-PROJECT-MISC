@@ -1,12 +1,30 @@
 package impl
 
 import (
+	"os"
 	"sync"
 
 	// Import the SafeMap from utils
+	"github.com/rs/zerolog"
 	"go.dedis.ch/cs438/peer"
 	"go.dedis.ch/cs438/types"
 )
+
+// Global logger function
+func init() {
+	// defaultLevel can be changed to set the desired level of the logger
+	defaultLevel = zerolog.InfoLevel
+
+	if os.Getenv("GLOG") == "no" {
+		defaultLevel = zerolog.Disabled
+	}
+
+	logger = zerolog.New(logout).
+		Level(defaultLevel).
+		With().Timestamp().Logger().
+		With().Caller().Logger().
+		With().Str("role", "node.go").Logger()
+}
 
 type sequenceNumber struct {
 	mu        sync.Mutex
@@ -21,8 +39,8 @@ type node struct {
 
 	currentHeight uint
 
-	stopCh                chan struct{}
-	newTxCh               chan struct{}
+	stopCh  chan struct{}
+	newTxCh chan struct{}
 
 	ackChannel            SafeMap[string, chan *types.AckMessage]
 	directPeers           SafeMap[string, struct{}]
@@ -39,6 +57,9 @@ type node struct {
 	//Added DNS store
 	UTXOSet SafeMap[string, types.UTXO]        //Mapping from Domain to UTXO
 	mempool SafeMap[string, types.Transaction] //Mapping from Transaction ID to Transaction
+
+	//Max Number of Tx per Block
+	MaxTxPerBlock uint
 }
 
 func NewPeer(conf peer.Configuration) peer.Peer {
@@ -55,7 +76,6 @@ func NewPeer(conf peer.Configuration) peer.Peer {
 		stopCh:                make(chan struct{}),
 		newTxCh:               make(chan struct{}, 100),
 
-
 		ackChannel:      NewSafeMap[string, chan *types.AckMessage](),
 		dataReplyChan:   NewSafeMap[string, chan *types.DataReplyMessage](),
 		searchReplyChan: NewSafeMap[string, chan *types.SearchReplyMessage](),
@@ -63,6 +83,7 @@ func NewPeer(conf peer.Configuration) peer.Peer {
 		UTXOSet:         NewSafeMap[string, types.UTXO](),
 		mempool:         NewSafeMap[string, types.Transaction](),
 		currentHeight:   0,
+		MaxTxPerBlock:   3,
 	}
 
 	//initialize auxiliary structures
@@ -93,20 +114,19 @@ func NewPeer(conf peer.Configuration) peer.Peer {
 // Start implements peer.Service
 func (n *node) Start() error {
 
-	log := n.getLogger()
 	address := n.conf.Socket.GetAddress()
-	log.Info().Msgf("Node %s starting to listen to packets", address)
+	logger.Info().Msgf("Node %s starting to listen to packets", address)
 	n.wg.Add(1)
 	go n.listen()
 
 	if n.conf.AntiEntropyInterval > 0 {
-		log.Info().Msgf("Node %s starting anti entropy mechanism", address)
+		logger.Info().Msgf("Node %s starting anti entropy mechanism", address)
 		n.wg.Add(1)
 		go n.runStatusMechanism()
 	}
 
 	if n.conf.HeartbeatInterval > 0 {
-		log.Info().Msgf("Node %s sending first heartbeat", address)
+		logger.Info().Msgf("Node %s sending first heartbeat", address)
 		n.wg.Add(1)
 		go n.runHeartBeatMechanism()
 	}
@@ -121,11 +141,11 @@ func (n *node) Start() error {
 
 // Stop implements peer.Service
 func (n *node) Stop() error {
-	log := n.getLogger()
+
 	close(n.stopCh)
 	close(n.newTxCh)
-	log.Info().Msg("WAITING FOR ROUTINE TO FINISH")
+	logger.Info().Msg("WAITING FOR ROUTINE TO FINISH")
 	n.wg.Wait()
-	log.Info().Msg("ALL ROUTINES FINISHED")
+	logger.Info().Msg("ALL ROUTINES FINISHED")
 	return nil
 }

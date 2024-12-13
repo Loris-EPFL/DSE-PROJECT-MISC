@@ -3,21 +3,38 @@
 package impl
 
 import (
+	"os"
 	"time"
 
+	"github.com/rs/zerolog"
 	"go.dedis.ch/cs438/peer"
 	"go.dedis.ch/cs438/transport"
 	"go.dedis.ch/cs438/types"
 	"golang.org/x/xerrors"
 )
 
+// Global logger function
+func init() {
+	// defaultLevel can be changed to set the desired level of the logger
+	defaultLevel = zerolog.InfoLevel
+
+	if os.Getenv("GLOG") == "no" {
+		defaultLevel = zerolog.Disabled
+	}
+
+	logger = zerolog.New(logout).
+		Level(defaultLevel).
+		With().Timestamp().Logger().
+		With().Caller().Logger().
+		With().Str("role", "communication.go").Logger()
+}
+
 // auxiliary function that returns the next hop in the routing table of a node for a certain destination
 func (n *node) getNextHop(destination string) (string, error) {
-	log := n.getLogger()
 
 	nextHop, exists := n.routingTable.Get(destination)
 	if !exists {
-		log.Error().
+		logger.Error().
 			Str("destination", destination).
 			Msg("No route to destination")
 		return "", xerrors.Errorf("No route to destination %s", destination)
@@ -59,12 +76,11 @@ func (n *node) AddPeer(addr ...string) {
 
 // Unicast implements peer.Messaging
 func (n *node) Unicast(dest string, msg transport.Message) error {
-	log := n.getLogger()
 
 	nextHop, ok := n.routingTable.Get(dest)
 
 	if !ok {
-		log.Error().
+		logger.Error().
 			Str("destination", dest).
 			Msg("No route to destination")
 		return xerrors.Errorf("No route to destination %s", dest)
@@ -82,7 +98,7 @@ func (n *node) Unicast(dest string, msg transport.Message) error {
 
 	// send the message
 	if err := n.conf.Socket.Send(nextHop, pkt, time.Second*1); err != nil {
-		log.Error().
+		logger.Error().
 			Str("destination", dest).
 			Str("next_hop", nextHop).
 			Err(err).
@@ -90,7 +106,7 @@ func (n *node) Unicast(dest string, msg transport.Message) error {
 		return err
 	}
 
-	log.Info().
+	logger.Info().
 		Str("destination", dest).
 		Str("next_hop", nextHop).
 		Msg("Unicast message sent")

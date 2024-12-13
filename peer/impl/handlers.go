@@ -3,24 +3,41 @@ package impl
 import (
 	"fmt"
 	"math/rand"
+	"os"
 	"regexp"
 	"time"
 
-	"github.com/rs/zerolog/log"
+	"github.com/rs/zerolog"
 	"go.dedis.ch/cs438/transport"
 	"go.dedis.ch/cs438/types"
 	"golang.org/x/xerrors"
 )
 
+// Global logger function
+func init() {
+	// defaultLevel can be changed to set the desired level of the logger
+	defaultLevel = zerolog.InfoLevel
+
+	if os.Getenv("GLOG") == "no" {
+		defaultLevel = zerolog.Disabled
+	}
+
+	logger = zerolog.New(logout).
+		Level(defaultLevel).
+		With().Timestamp().Logger().
+		With().Caller().Logger().
+		With().Str("role", "handlers.go").Logger()
+}
+
 // auxiliary function that handles incoming packets
 func (n *node) handleIncomingPacket() error {
-	log := n.getLogger()
+
 	pkt, err := n.conf.Socket.Recv(time.Second)
 	if err != nil {
 		return err
 	}
 
-	log.Info().
+	logger.Info().
 		Str("from", pkt.Header.RelayedBy).
 		Str("to", pkt.Header.Destination).
 		Str("type", pkt.Msg.Type).
@@ -35,12 +52,11 @@ func (n *node) handleIncomingPacket() error {
 }
 
 func (n *node) handlePrivateMessage(msg types.Message, pkt transport.Packet) error {
-	log := n.getLogger()
 
 	privMsg, ok := msg.(*types.PrivateMessage)
 
 	if !ok {
-		log.Error().
+		logger.Error().
 			Msgf("Expected PrivateMessage, got %T", msg)
 		return xerrors.Errorf("expected PrivateMessage, got %T", msg)
 	}
@@ -55,18 +71,18 @@ func (n *node) handlePrivateMessage(msg types.Message, pkt transport.Packet) err
 	}
 
 	if isRecip {
-		log.Info().Msg("Processing PrivateMessage")
+		logger.Info().Msg("Processing PrivateMessage")
 
 		privPkt := createTransportPacket(pkt.Header, privMsg.Msg)
 
 		err := n.conf.MessageRegistry.ProcessPacket(privPkt)
 
 		if err != nil {
-			log.Error().Err(err).Msg("Failed to process embedded message")
+			logger.Error().Err(err).Msg("Failed to process embedded message")
 			return xerrors.Errorf("Failed to process embedded message")
 		}
 	} else {
-		log.Info().Msg("Not a recipient of PrivateMessage; ignoring")
+		logger.Info().Msg("Not a recipient of PrivateMessage; ignoring")
 
 	}
 
@@ -78,16 +94,16 @@ func (n *node) handleEmptyMessage(msg types.Message, pkt transport.Packet) error
 }
 
 func (n *node) handleChatMessage(msg types.Message, pkt transport.Packet) error {
-	log := n.getLogger()
+
 	chatMsg, ok := msg.(*types.ChatMessage)
 
 	if !ok {
-		log.Error().
+		logger.Error().
 			Msgf("Expected ChatMessage, got %T", msg)
 		return xerrors.Errorf("expected ChatMessage, got %T", msg)
 	}
 
-	log.Info().
+	logger.Info().
 		Str("message", chatMsg.Message).
 		Msg("Received chat message")
 
@@ -95,11 +111,11 @@ func (n *node) handleChatMessage(msg types.Message, pkt transport.Packet) error 
 }
 
 func (n *node) handleStatusMessage(msg types.Message, pkt transport.Packet) error {
-	log := n.getLogger()
+
 	statusMsg, ok := msg.(*types.StatusMessage)
 
 	if !ok {
-		log.Error().
+		logger.Error().
 			Msgf("Expected status message, got %T", msg)
 		return xerrors.Errorf("Expected status message, got %T", msg)
 	}
@@ -112,14 +128,14 @@ func (n *node) handleStatusMessage(msg types.Message, pkt transport.Packet) erro
 	case 1:
 		err := n.sendStatusMessage(pkt.Header.Source)
 		if err != nil {
-			log.Error().Msgf("Impossible to send status message to %s", pkt.Header.Source)
+			logger.Error().Msgf("Impossible to send status message to %s", pkt.Header.Source)
 		}
 
 	//2. local has views that remote hasn't
 	case 2:
 		err := n.sendMissingRumors(pkt.Header.Source, rumorsToSend)
 		if err != nil {
-			log.Error().Msgf("Impossible to send missing rumors to to %s", pkt.Header.Source)
+			logger.Error().Msgf("Impossible to send missing rumors to to %s", pkt.Header.Source)
 		}
 
 	//3. Both have views that the other hasn't
@@ -129,7 +145,7 @@ func (n *node) handleStatusMessage(msg types.Message, pkt transport.Packet) erro
 		errMiss := n.sendMissingRumors(pkt.Header.Source, rumorsToSend)
 
 		if errStat != nil || errMiss != nil {
-			log.Error().
+			logger.Error().
 				Msgf("Unable to send status or missing rumors to %s", pkt.Header.Source)
 
 		}
@@ -143,12 +159,10 @@ func (n *node) handleStatusMessage(msg types.Message, pkt transport.Packet) erro
 
 func (n *node) handleAckMessage(msg types.Message, pkt transport.Packet) error {
 
-	log := n.getLogger()
-
 	ackMsg, ok := msg.(*types.AckMessage)
 
 	if !ok {
-		log.Error().
+		logger.Error().
 			Msgf("Expected AckMessage, got %T", msg)
 		return xerrors.Errorf("Expected AckMessage got %T", msg)
 	}
@@ -156,18 +170,18 @@ func (n *node) handleAckMessage(msg types.Message, pkt transport.Packet) error {
 	goodChan, exists := n.ackChannel.Get(ackMsg.AckedPacketID)
 
 	if !exists {
-		log.Error().Msgf("No acked packet ID found")
+		logger.Error().Msgf("No acked packet ID found")
 	} else {
 		goodChan <- ackMsg
 	}
 
-	log.Warn().Msgf("Channel %v", goodChan)
+	logger.Warn().Msgf("Channel %v", goodChan)
 
 	statusMsg := ackMsg.Status
 
 	statusMsgTransp, err := n.conf.MessageRegistry.MarshalMessage(statusMsg)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to marshal StatusMessage")
+		logger.Error().Err(err).Msg("Failed to marshal StatusMessage")
 		return err
 	}
 
@@ -182,11 +196,10 @@ func (n *node) handleAckMessage(msg types.Message, pkt transport.Packet) error {
 
 func (n *node) handleRumor(msg types.Message, pkt transport.Packet) error {
 
-	log := n.getLogger()
 	rumors, ok := msg.(*types.RumorsMessage)
 
 	if !ok {
-		log.Error().Msgf("Expected rumor, got %T", msg)
+		logger.Error().Msgf("Expected rumor, got %T", msg)
 		return nil
 	}
 
@@ -211,7 +224,7 @@ func (n *node) handleRumor(msg types.Message, pkt transport.Packet) error {
 
 			err := n.processRumorMessage(rumor, pkt)
 			if err != nil {
-				log.Error().
+				logger.Error().
 					Msg("Failed to process Rumor message")
 
 				return err
@@ -232,7 +245,7 @@ func (n *node) handleRumor(msg types.Message, pkt transport.Packet) error {
 			ackk := n.sendAckMessage(pkt)
 
 			if ackk != nil {
-				log.Error().
+				logger.Error().
 					Msgf("Failed to send Ack from %s to %s: %v.",
 						n.conf.Socket.GetAddress(),
 						pkt.Header.Source, ackk)
@@ -248,7 +261,7 @@ func (n *node) handleRumor(msg types.Message, pkt transport.Packet) error {
 	if processedRumor {
 		err := n.forwardRumorsMessage(rumors, pkt)
 		if err != nil {
-			log.Error().
+			logger.Error().
 				Msgf("Unable to forward rumor message from %s", n.conf.Socket.GetAddress())
 		}
 
@@ -275,8 +288,6 @@ func (n *node) handleRumor(msg types.Message, pkt transport.Packet) error {
 // * Data and search message handlers
 func (n *node) handleDataRequestMessage(msg types.Message, pkt transport.Packet) error {
 
-	log := n.getLogger()
-
 	dataRequest, ok := msg.(*types.DataRequestMessage)
 
 	if n.handledDataRequests.Exists(dataRequest.RequestID) {
@@ -299,7 +310,7 @@ func (n *node) handleDataRequestMessage(msg types.Message, pkt transport.Packet)
 	msgBytes, err := n.conf.MessageRegistry.MarshalMessage(dataReply)
 
 	if err != nil {
-		log.Error().Msg("Error marshaling data reply message")
+		logger.Error().Msg("Error marshaling data reply message")
 		return err
 	}
 
@@ -321,7 +332,7 @@ func (n *node) handleDataRequestMessage(msg types.Message, pkt transport.Packet)
 
 	err = n.conf.Socket.Send(nextHop, replyPkt, time.Second*1)
 	if err != nil {
-		log.Error().Msgf("Error sending data reply message to %s", pkt.Header.Source)
+		logger.Error().Msgf("Error sending data reply message to %s", pkt.Header.Source)
 		return err
 	}
 
@@ -332,12 +343,10 @@ func (n *node) handleDataRequestMessage(msg types.Message, pkt transport.Packet)
 
 func (n *node) handleDataReplyMessage(msg types.Message, pkt transport.Packet) error {
 
-	log := n.getLogger()
-
 	dataReply, ok := msg.(*types.DataReplyMessage)
 
 	if !ok {
-		log.Error().Msgf("Expected data reply message, got %T", dataReply)
+		logger.Error().Msgf("Expected data reply message, got %T", dataReply)
 	}
 
 	value, ok := n.dataReplyChan.Get(dataReply.RequestID)
@@ -351,10 +360,10 @@ func (n *node) handleDataReplyMessage(msg types.Message, pkt transport.Packet) e
 			// Successfully sent the reply to the waiting goroutine
 		default:
 			// Channel is full or closed
-			log.Warn().Msg("Reply channel is full or closed")
+			logger.Warn().Msg("Reply channel is full or closed")
 		}
 	} else {
-		log.Warn().Msgf("No waiting request for RequestID %s", dataReply.RequestID)
+		logger.Warn().Msgf("No waiting request for RequestID %s", dataReply.RequestID)
 	}
 
 	return nil
@@ -390,14 +399,13 @@ func (n *node) forwardSearchRequest(searchReq types.SearchRequestMessage, source
 
 func (n *node) handleSearchRequestMessage(msg types.Message, pkt transport.Packet) error {
 
-	log := n.getLogger()
 	searchReq, ok := msg.(*types.SearchRequestMessage)
 	if n.handledSearchRequests.Exists(searchReq.RequestID) {
 		return nil
 	}
 
 	if !ok {
-		log.Error().Msgf("Expected SearchReq Message, got %T", msg)
+		logger.Error().Msgf("Expected SearchReq Message, got %T", msg)
 		return xerrors.Errorf("Unexcepted message type: %T", msg)
 	}
 
@@ -406,7 +414,7 @@ func (n *node) handleSearchRequestMessage(msg types.Message, pkt transport.Packe
 	fwResult := n.forwardSearchRequest(*searchReq, pkt.Header.Source)
 
 	if fwResult != nil {
-		log.Error().Msg("Failed to forward search request")
+		logger.Error().Msg("Failed to forward search request")
 		return fwResult
 	}
 
@@ -415,12 +423,12 @@ func (n *node) handleSearchRequestMessage(msg types.Message, pkt transport.Packe
 	matchingFiles := n.SearchLocalFiles(reg)
 
 	//! send reply message
-	log.Info().Msgf("Sending reply message to %s", pkt.Header.Source)
+	logger.Info().Msgf("Sending reply message to %s", pkt.Header.Source)
 
 	sendResult := n.sendReplyMessage(matchingFiles, searchReq.RequestID, searchReq.Origin, pkt.Header.Source)
 
 	if sendResult != nil {
-		log.Error().Msg("Failed to send reply message")
+		logger.Error().Msg("Failed to send reply message")
 		return sendResult
 	}
 
@@ -431,12 +439,10 @@ func (n *node) handleSearchRequestMessage(msg types.Message, pkt transport.Packe
 
 func (n *node) handleSearchReplyMessage(msg types.Message, pkt transport.Packet) error {
 
-	log := n.getLogger()
-
 	searchReply, ok := msg.(*types.SearchReplyMessage)
 
 	if !ok {
-		log.Error().Msgf("Expected SearchReplyMessage, got %T", msg)
+		logger.Error().Msgf("Expected SearchReplyMessage, got %T", msg)
 		return xerrors.Errorf("Expected SearchReplyMessage, got %T", msg)
 	}
 
@@ -449,7 +455,7 @@ func (n *node) handleSearchReplyMessage(msg types.Message, pkt transport.Packet)
 		namingStore.Set(fileInfo.Name, []byte(fileInfo.Metahash))
 
 		for _, chunk := range fileInfo.Chunks {
-			log.Info().Msgf("Updating catalog with chunk %s", chunk)
+			logger.Info().Msgf("Updating catalog with chunk %s", chunk)
 			if chunk != nil {
 				n.catalog.Update(string(chunk), pkt.Header.Source, n.conf.Socket.GetAddress())
 			}
@@ -460,7 +466,7 @@ func (n *node) handleSearchReplyMessage(msg types.Message, pkt transport.Packet)
 	value, ok := n.searchReplyChan.Get(searchReply.RequestID)
 
 	if !ok {
-		log.Warn().Msgf("No waiting request for RequestID %s", searchReply.RequestID)
+		logger.Warn().Msgf("No waiting request for RequestID %s", searchReply.RequestID)
 		return nil
 	}
 
@@ -469,10 +475,10 @@ func (n *node) handleSearchReplyMessage(msg types.Message, pkt transport.Packet)
 	select {
 	case replyChan <- searchReply:
 		// Successfully sent the reply to the waiting goroutine
-		log.Debug().Msgf("Sent SearchReplyMessage with RequestID %s to waiting goroutine", searchReply.RequestID)
+		logger.Debug().Msgf("Sent SearchReplyMessage with RequestID %s to waiting goroutine", searchReply.RequestID)
 	default:
 		// Channel is full or closed
-		log.Warn().Msg("Reply channel is full or closed")
+		logger.Warn().Msg("Reply channel is full or closed")
 	}
 
 	return nil
@@ -485,16 +491,18 @@ func (n *node) handleSearchReplyMessage(msg types.Message, pkt transport.Packet)
 func (n *node) handleDNSReadRequestMessage(msg types.Message, pkt transport.Packet) error {
 	// Handle DNS read message
 	DNSReadRequest, ok := msg.(*types.DNSReadRequestMessage)
+	logger.Info().Any("request", DNSReadRequest).Msg("Received DNS read request message")
 	if !ok {
-		log.Error().Msgf("Expected DNSReadRequestMessage, got %T", msg)
+		logger.Error().Msgf("Expected DNSReadRequestMessage, got %T", msg)
 		return xerrors.Errorf("Expected DNSReadRequestMessage, got %T", msg)
 	}
 
 	logger.Info().Any("DNSReadRequest", DNSReadRequest)
 	// Check if the domain exists in the DNS store
 	UTXO, ok := n.UTXOSet.Get(DNSReadRequest.Domain)
+	logger.Info().Any("UTXO", n.UTXOSet.ToMap()).Msg("UTXO Set in Read handler")
 	if !ok {
-		log.Error().Msgf("Domain %s not found", DNSReadRequest.Domain)
+		logger.Error().Msgf("Domain %s not found", DNSReadRequest.Domain)
 		return xerrors.Errorf("Domain %s not found", DNSReadRequest.Domain)
 	}
 
@@ -509,7 +517,7 @@ func (n *node) handleDNSReadRequestMessage(msg types.Message, pkt transport.Pack
 	// Send DNSReadReply to the source
 	msgBytes, err := n.conf.MessageRegistry.MarshalMessage(DNSReadReply)
 	if err != nil {
-		log.Error().Msgf("Failed to marshal DNSReadReply message: %v", err)
+		logger.Error().Msgf("Failed to marshal DNSReadReply message: %v", err)
 		return err
 	}
 
@@ -523,7 +531,7 @@ func (n *node) handleDNSReadRequestMessage(msg types.Message, pkt transport.Pack
 
 	err = n.conf.Socket.Send(pkt.Header.Source, replyPkt, time.Second*1)
 	if err != nil {
-		log.Error().Msgf("Failed to send DNSReadReply message: %v", err)
+		logger.Error().Msgf("Failed to send DNSReadReply message: %v", err)
 		return err
 	}
 
@@ -534,13 +542,12 @@ func (n *node) handleDNSReadReplyMessage(msg types.Message, pkt transport.Packet
 	// Handle DNS read reply message
 	DNSReadReply, ok := msg.(*types.DNSReadReplyMessage)
 	if !ok {
-		log := n.getLogger()
-		log.Error().Msgf("Expected DNSReadReplyMessage, got %T", msg)
+
+		logger.Error().Msgf("Expected DNSReadReplyMessage, got %T", msg)
 		return xerrors.Errorf("Expected DNSReadReplyMessage, got %T", msg)
 	}
 
-	log := n.getLogger()
-	log.Info().
+	logger.Info().
 		Str("domain", DNSReadReply.Domain).
 		Str("ip_address", DNSReadReply.IPAddress).
 		Dur("ttl", DNSReadReply.TTL).
@@ -554,7 +561,7 @@ func (n *node) handleDNSReadReplyMessage(msg types.Message, pkt transport.Packet
 
 // Added Handler for TransactionMessage (can be new, firstupdate or update)
 func (n *node) handleTransactionMessage(msg types.Message, pkt transport.Packet) error {
-	log := n.getLogger()
+
 	txMsg, ok := msg.(*types.TransactionMessage)
 	if !ok {
 		return fmt.Errorf("expected TransactionMessage, got %T", msg)
@@ -563,24 +570,23 @@ func (n *node) handleTransactionMessage(msg types.Message, pkt transport.Packet)
 	// Validate transaction fields (syntactic checks, etc.)
 	err := n.validateTransaction(&txMsg.Tx)
 	if err != nil {
-		log.Error().Err(err).Msg("Invalid transaction received")
+		logger.Error().Err(err).Msg("Invalid transaction received")
 		return err
 	}
 
 	// If valid, add to mempool
 	n.mempool.Add(txMsg.Tx.ID, txMsg.Tx)
-	log.Info().Msgf("Received transaction %s and added it to mempool", txMsg.Tx.ID)
+	logger.Info().Msgf("Received transaction %s and added it to mempool", txMsg.Tx.ID)
 
 	n.newTxCh <- struct{}{}
 
-	log.Info().Msg("New transaction received, notifying mining routine")
+	logger.Info().Msg("New transaction received, notifying mining routine")
 
 	return nil
 }
 
 func (n *node) handleBlockMessage(msg types.Message, pkt transport.Packet) error {
 
-	log := n.getLogger()
 	blockMsg, ok := msg.(*types.BlockMessage)
 
 	if !ok {
@@ -590,22 +596,22 @@ func (n *node) handleBlockMessage(msg types.Message, pkt transport.Packet) error
 	// Validate the block
 	err := n.validateBlock(&blockMsg.Block)
 	if err != nil {
-		log.Error().Err(err).Msg("Invalid block received")
+		logger.Error().Err(err).Msg("Invalid block received")
 		return err
 	}
 
 	// Add the block to the blockchain
 	err = n.addBlockToBlockchain(&blockMsg.Block)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to add block to blockchain")
+		logger.Error().Err(err).Msg("Failed to add block to blockchain")
 		return err
 	}
 
 	n.removeTxsFromMempool(blockMsg.Block.Transactions)
-	log.Info().Msgf("Received block %d and added it to the blockchain", blockMsg.Block.Nonce)
-	log.Info().Msgf("I have %d blocks in the blockchain", n.getCurrentNonce())
+	logger.Info().Msgf("Received block %d and added it to the blockchain", blockMsg.Block.Nonce)
+	logger.Info().Msgf("I have %d blocks in the blockchain", n.getCurrentNonce())
 
-	log.Info().Msgf("UTXO Set: %v", n.UTXOSet)
+	logger.Info().Msgf("UTXO Set: %v", n.UTXOSet.ToMap())
 
 	return nil
 
