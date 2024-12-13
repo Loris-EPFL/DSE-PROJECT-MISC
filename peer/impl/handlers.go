@@ -497,7 +497,6 @@ func (n *node) handleDNSReadRequestMessage(msg types.Message, pkt transport.Pack
 		return xerrors.Errorf("Expected DNSReadRequestMessage, got %T", msg)
 	}
 
-	logger.Info().Any("DNSReadRequest", DNSReadRequest)
 	// Check if the domain exists in the DNS store
 	UTXO, ok := n.UTXOSet.Get(DNSReadRequest.Domain)
 	logger.Info().Any("UTXO", n.UTXOSet.ToMap()).Msg("UTXO Set in Read handler")
@@ -528,6 +527,9 @@ func (n *node) handleDNSReadRequestMessage(msg types.Message, pkt transport.Pack
 	)
 
 	replyPkt := createTransportPacket(&header, &msgBytes)
+
+	// Send the DNSReadReply message
+	logger.Info().Any("pkt", replyPkt).Msg("Sending DNS read reply message")
 
 	err = n.conf.Socket.Send(pkt.Header.Source, replyPkt, time.Second*1)
 	if err != nil {
