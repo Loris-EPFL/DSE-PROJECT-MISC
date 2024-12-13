@@ -491,6 +491,7 @@ func (n *node) handleSearchReplyMessage(msg types.Message, pkt transport.Packet)
 func (n *node) handleDNSReadRequestMessage(msg types.Message, pkt transport.Packet) error {
 	// Handle DNS read message
 	DNSReadRequest, ok := msg.(*types.DNSReadRequestMessage)
+	logger.Info().Any("request", DNSReadRequest).Msg("Received DNS read request message")
 	if !ok {
 		logger.Error().Msgf("Expected DNSReadRequestMessage, got %T", msg)
 		return xerrors.Errorf("Expected DNSReadRequestMessage, got %T", msg)
@@ -499,6 +500,7 @@ func (n *node) handleDNSReadRequestMessage(msg types.Message, pkt transport.Pack
 	logger.Info().Any("DNSReadRequest", DNSReadRequest)
 	// Check if the domain exists in the DNS store
 	UTXO, ok := n.UTXOSet.Get(DNSReadRequest.Domain)
+	logger.Info().Any("UTXO", n.UTXOSet.ToMap()).Msg("UTXO Set in Read handler")
 	if !ok {
 		logger.Error().Msgf("Domain %s not found", DNSReadRequest.Domain)
 		return xerrors.Errorf("Domain %s not found", DNSReadRequest.Domain)
@@ -609,7 +611,7 @@ func (n *node) handleBlockMessage(msg types.Message, pkt transport.Packet) error
 	logger.Info().Msgf("Received block %d and added it to the blockchain", blockMsg.Block.Nonce)
 	logger.Info().Msgf("I have %d blocks in the blockchain", n.getCurrentNonce())
 
-	logger.Info().Msgf("UTXO Set: %v", n.UTXOSet)
+	logger.Info().Msgf("UTXO Set: %v", n.UTXOSet.ToMap())
 
 	return nil
 

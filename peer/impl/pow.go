@@ -30,8 +30,6 @@ func init() {
 		With().Str("role", "pow.go").Logger()
 }
 
-const MaxTxPerBlock = 3
-
 func (n *node) startMIner() {
 	n.wg.Add(1)
 	go n.minerRoutine()
@@ -59,7 +57,7 @@ func (n *node) attemptToMine() {
 
 	logger.Info().Msg("Attempting to mine a new block")
 
-	txs := n.getTxsFromMempool(MaxTxPerBlock)
+	txs := n.getTxsFromMempool(n.MaxTxPerBlock)
 
 	if len(txs) == 0 {
 		logger.Info().Msg("No transactions to mine")
@@ -82,7 +80,7 @@ func (n *node) attemptToMine() {
 				return
 			case <-n.newTxCh:
 				//if a transaction arrives while mining
-				if len(txs) < MaxTxPerBlock {
+				if len(txs) < int(n.MaxTxPerBlock) {
 					close(stopMiningCh)
 					return
 				}
@@ -187,10 +185,10 @@ func (n *node) mineBlock(block *types.Block, stopMiningCh chan struct{}) (*types
 }
 
 // getMempoolTransactions returns up to 'limit' transactions from mempool
-func (n *node) getTxsFromMempool(limit int) []types.Transaction {
+func (n *node) getTxsFromMempool(limit uint) []types.Transaction {
 	m := n.mempool.ToMap()
 	txs := make([]types.Transaction, 0, len(m))
-	count := 0
+	count := uint(0)
 	for _, tx := range m {
 		txs = append(txs, tx)
 		count++

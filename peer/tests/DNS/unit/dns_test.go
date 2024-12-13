@@ -46,6 +46,7 @@ func init() {
 func Test_HandleDNSReadMessage(t *testing.T) {
 	transp := channel.NewTransport()
 
+	//Create 2 nodes and a reader (sender type since he "propose" a readDNSRequest)
 	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithPowBits(3))
 	defer node1.Stop()
 
@@ -53,6 +54,9 @@ func Test_HandleDNSReadMessage(t *testing.T) {
 	defer node2.Stop()
 
 	proposer, err := z.NewSenderSocket(transp, "127.0.0.3:0")
+	require.NoError(t, err)
+
+	reader, err := z.NewSenderSocket(transp, "127.0.0.4:0")
 	require.NoError(t, err)
 
 	node1.AddPeer(node2.GetAddr())
@@ -64,16 +68,22 @@ func Test_HandleDNSReadMessage(t *testing.T) {
 		TTL:    time.Second,
 	}
 
+	//Fields for the DNS entry inside the block
+	IPAddress := "192.168.1.1"
+	Expiration := time.Now().Add(time.Hour)
+	Owner := "owner1"
+
 	// Create NameNew transaction
 	hash := sha256.New()
 	hash.Write([]byte("random_salt" + dnsEntry.Domain))
 	saltedHash := hex.EncodeToString(hash.Sum(nil))
 
+	//Create NameNew transaction
 	nameNewTx := types.Transaction{
 		ID:           "tx1",
 		Type:         types.NameNew,
 		Input:        types.UTXO{}, // Dummy input
-		Output:       types.UTXO{DomainName: saltedHash, IP: "192.168.1.1", Owner: "owner1", Expiration: time.Now().Add(time.Hour)},
+		Output:       types.UTXO{DomainName: saltedHash, IP: IPAddress, Owner: Owner, Expiration: Expiration},
 		HashedDomain: saltedHash,
 		Fees:         1,
 	}
@@ -82,6 +92,7 @@ func Test_HandleDNSReadMessage(t *testing.T) {
 		Tx: nameNewTx,
 	}
 	transpStatusMsg, err := node1.GetRegistry().MarshalMessage(&msg)
+	require.NoError(t, err)
 
 	header := transport.NewHeader(proposer.GetAddress(), proposer.GetAddress(), node1.GetAddr())
 
@@ -94,6 +105,7 @@ func Test_HandleDNSReadMessage(t *testing.T) {
 	err = proposer.Send(node1.GetAddr(), packet, time.Second*1)
 	require.NoError(t, err)
 
+	//Wait 3 seconds, it should instead be wait for about 3 blocks to be mined
 	time.Sleep(time.Second * 3)
 
 	// Create NameFirstUpdate transaction
@@ -101,7 +113,7 @@ func Test_HandleDNSReadMessage(t *testing.T) {
 		ID:          "tx2",
 		Type:        types.NameFirstUpdate,
 		Input:       nameNewTx.Output, // Dummy input
-		Output:      types.UTXO{ DomainName: dnsEntry.Domain, IP: "192.168.1.1", Owner: "owner1", Expiration: time.Now().Add(time.Hour)},
+		Output:      types.UTXO{DomainName: dnsEntry.Domain, IP: IPAddress, Owner: Owner, Expiration: Expiration},
 		PlainDomain: dnsEntry.Domain,
 		Salt:        "random_salt",
 		Fees:        1,
@@ -120,11 +132,12 @@ func Test_HandleDNSReadMessage(t *testing.T) {
 		Msg:    &transpStatusMsg,
 	}
 
-	// Send
+	// Send NameFirstUpdate transaction
 	err = proposer.Send(node1.GetAddr(), packet, time.Second*1)
 	require.NoError(t, err)
 
-	time.Sleep(time.Second * 3)
+	//Wait 1 seconds, it should not be needed since we should right after the NameFirstUpdate
+	time.Sleep(time.Second * 1)
 
 	transpRequestMsg, err := node1.GetRegistry().MarshalMessage(&dnsEntry)
 	require.NoError(t, err)
@@ -137,24 +150,48 @@ func Test_HandleDNSReadMessage(t *testing.T) {
 	}
 
 	// Send DNSReadRequestMessage
-	err = proposer.Send(node1.GetAddr(), packet, time.Second*1)
+	err = reader.Send(node1.GetAddr(), packet, time.Second*1)
 	require.NoError(t, err)
 
-	time.Sleep(time.Second * 3)
+	time.Sleep(time.Second * 1)
 
 	//Check if DNSReadReplyMessage was received
 	ins := node1.GetIns()
-	//Received 2 acks and 2 transactions
+	logger.Info().Any("ins", ins).Msg("Received messages")
+	//Received 2 acks and 2 transactions, and a DNSReadRequestMessage
 	require.Len(t, ins, 5)
 
-	pkt := ins[4]
-	require.Equal(t, "DNSReadRequestMessage", pkt.Msg.Type)
+	//Check if one of the message received is a DNSReadRequestMessage
+	hasDNSReadRequest := false
+	for _, in := range ins {
+		if in.Msg.Type == "DNSReadRequestMessage" {
+			request := &types.DNSReadRequestMessage{}
+			err := node1.GetRegistry().UnmarshalMessage(in.Msg, request)
+			require.NoError(t, err)
+			logger.Info().Any("received request", request).Msg("test DNSReadRequestMessage")
+			require.Equal(t, request.Domain, dnsEntry.Domain)
+			require.Equal(t, request.TTL, dnsEntry.TTL)
+			hasDNSReadRequest = true
+			break
+		}
+	}
 
-	// reply := types.DNSReadReplyMessage{}
-	// err = json.Unmarshal(pkt.Msg.Payload, &reply)
-	// require.NoError(t, err)
+	require.True(t, hasDNSReadRequest)
 
-	// require.Equal(t, dnsEntry.Domain, reply.Domain)
-	// require.Equal(t, "192.168.1.1", reply.IPAddress)
-	// require.Greater(t, reply.TTL, time.Duration(0))
+	outs := node1.GetOuts()
+	//Fliter out DNSReadReplyMessage, find the one that matches the domain, check if all fields are respected
+	for _, out := range outs {
+		if out.Msg.Type == "DNSReadReplyMessage" {
+			reply := &types.DNSReadReplyMessage{}
+			err := node1.GetRegistry().UnmarshalMessage(out.Msg, reply)
+			require.NoError(t, err)
+			logger.Info().Any("reply", reply).Msg("test DNSReadReplyMessage")
+			require.Equal(t, reply.Domain, dnsEntry.Domain)
+			require.Equal(t, reply.IPAddress, IPAddress)
+			require.LessOrEqual(t, reply.Expiration, Expiration) //LessOrEqual because of imprecision error, but should virtually be the same
+			require.Equal(t, reply.Owner, Owner)
+			break
+		}
+	}
+
 }

@@ -75,15 +75,17 @@ func (n *node) addBlockToBlockchain(block *types.Block) error {
 
 			case types.NameFirstUpdate:
 				// NameFirstUpdate: consume the NameNew UTXO
+
 				inputUTXO, found, err := n.findUTXO(tx.Input)
 				if err != nil || !found {
-					logger.Error().Err(err).Any("inputUTXO", inputUTXO).Msg("Input UTXO not found for NameFirstUpdate")
+					logger.Error().Err(err).Any("inputUTXO", inputUTXO).Any("search input", tx).Any("utxoset", n.UTXOSet.ToMap()).Msg("Input UTXO not found for NameFirstUpdate")
 					return xerrors.Errorf("Input UTXO not found for NameFirstUpdate")
 				}
 
 				logger.Info().Msgf("Removing UTXO: %s", tx.Input.DomainName)
 
 				n.removeUTXO(tx.Input.DomainName)
+
 				// Produce a new UTXO with the revealed domain name
 				newUTXO := types.UTXO{
 					DomainName: tx.Output.DomainName, // Now the actual domain name
@@ -91,6 +93,7 @@ func (n *node) addBlockToBlockchain(block *types.Block) error {
 					Owner:      tx.Output.Owner,
 					Expiration: tx.Output.Expiration,
 				}
+				logger.Warn().Any("newUTXO", newUTXO).Msg("Adding new UTXO in AddBlockToBlockchain")
 				n.addUTXO(tx.Output.DomainName, newUTXO)
 
 			case types.NameUpdate:
@@ -126,8 +129,7 @@ func (n *node) addBlockToBlockchain(block *types.Block) error {
 	// Update the current height
 	n.currentHeight++
 
-	logger.Info().Msgf("Block added to blockchain: %s", hashHex)
-	logger.Info().Msg("Block added and UTXO set updated successfully")
+	logger.Info().Any("Block added to blockchain:", hashHex).Msg("Block added and UTXO set updated successfully")
 
 	n.PrintAllNonces()
 	return nil
@@ -153,6 +155,8 @@ func (n *node) validateBlock(block *types.Block) error {
 func (n *node) validateTransaction(tx *types.Transaction) error {
 	// don't forget to add fees and tokens check
 	// Common checks
+
+	logger.Warn().Any("TX", tx).Msg("Validating transaction")
 
 	if tx.ID == "" {
 		return xerrors.New("Transaction ID is empty")
@@ -181,7 +185,9 @@ func (n *node) validateTransaction(tx *types.Transaction) error {
 	case types.NameFirstUpdate:
 		// Validate NameFirstUpdate
 		// Must have a valid input referencing a NameNew UTXO
+		logger.Warn().Any("TX", tx).Msg("Validating NameFirstUpdate")
 		inputUTXO, found, err := n.findUTXO(tx.Input)
+		logger.Warn().Any("inputUTXO", inputUTXO).Msg("Found input UTXO")
 		if err != nil || !found {
 			return xerrors.Errorf("Input UTXO not found for NameFirstUpdate")
 		}
@@ -189,8 +195,8 @@ func (n *node) validateTransaction(tx *types.Transaction) error {
 		// Verify that the domain revealed matches the hashed domain in NameNew
 		hashed := hashDomain(tx.Salt, tx.PlainDomain)
 
-		nameNewUtxo, found, err := n.findUTXO(types.UTXO{DomainName: hashed})
-		logger.Debug().Msgf("NameNew UTXO: %v", nameNewUtxo)
+		nameNewUtxo, found, err := n.findUTXO(inputUTXO)
+		logger.Warn().Any("UTXO:", nameNewUtxo).Msg("Found UTXO in validate FirstNameUpdate")
 		logger.Info().Any("namenew hashed domain", nameNewUtxo.DomainName).Msgf("Computed hashed domain: %s", hashed)
 
 		if !found {
@@ -290,6 +296,3 @@ func (n *node) createGenesisBlock() *types.Block {
 
 	return block
 }
-
-//4891456abc287282f533534c60191e329cfe4fa5cd91c21ffc959a6d7c9c2edb
-//4891456abc287282f533534c60191e329cfe4fa5cd91c21ffc959a6d7c9c2edb

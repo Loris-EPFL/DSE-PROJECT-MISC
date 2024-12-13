@@ -57,6 +57,9 @@ type node struct {
 	//Added DNS store
 	UTXOSet SafeMap[string, types.UTXO]        //Mapping from Domain to UTXO
 	mempool SafeMap[string, types.Transaction] //Mapping from Transaction ID to Transaction
+
+	//Max Number of Tx per Block
+	MaxTxPerBlock uint
 }
 
 func NewPeer(conf peer.Configuration) peer.Peer {
@@ -80,6 +83,7 @@ func NewPeer(conf peer.Configuration) peer.Peer {
 		UTXOSet:         NewSafeMap[string, types.UTXO](),
 		mempool:         NewSafeMap[string, types.Transaction](),
 		currentHeight:   0,
+		MaxTxPerBlock:   3,
 	}
 
 	//initialize auxiliary structures
