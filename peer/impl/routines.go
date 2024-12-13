@@ -1,24 +1,41 @@
 package impl
 
 import (
+	"os"
 	"time"
 
+	"github.com/rs/zerolog"
 	"go.dedis.ch/cs438/transport"
 	"go.dedis.ch/cs438/types"
 )
 
+// Global logger function
+func init() {
+	// defaultLevel can be changed to set the desired level of the logger
+	defaultLevel = zerolog.InfoLevel
+
+	if os.Getenv("GLOG") == "no" {
+		defaultLevel = zerolog.Disabled
+	}
+
+	logger = zerolog.New(logout).
+		Level(defaultLevel).
+		With().Timestamp().Logger().
+		With().Caller().Logger().
+		With().Str("role", "routines.go").Logger()
+}
+
 func (n *node) runHeartBeatMechanism() {
 
 	defer n.wg.Done()
-	log := n.getLogger()
 
 	firstBeat := n.sendHeartBeat()
 	if firstBeat != nil {
-		log.Error().
+		logger.Error().
 			Msgf("Unable to send first heartbeat from %s", n.conf.Socket.GetAddress())
 	}
 
-	defer log.Warn().Msg("Finished runHeartBeatMechanism")
+	defer logger.Warn().Msg("Finished runHeartBeatMechanism")
 	for {
 		select {
 		case <-n.stopCh:
@@ -27,7 +44,7 @@ func (n *node) runHeartBeatMechanism() {
 		case <-time.After(n.conf.HeartbeatInterval):
 			err := n.sendHeartBeat()
 			if err != nil {
-				log.Error().Err(err).Msg("Failed to send heartbeat")
+				logger.Error().Err(err).Msg("Failed to send heartbeat")
 			}
 		}
 
@@ -37,10 +54,10 @@ func (n *node) runHeartBeatMechanism() {
 
 // function that runs the anti entropy mechanism with a ticker using the AntiEntropyInterval
 func (n *node) runStatusMechanism() {
-	log := n.getLogger()
+
 	defer n.wg.Done()
 
-	defer log.Warn().Msg("Finished runStatusMechanism")
+	defer logger.Warn().Msg("Finished runStatusMechanism")
 
 	for {
 		select {
@@ -49,7 +66,7 @@ func (n *node) runStatusMechanism() {
 		case <-time.After(n.conf.AntiEntropyInterval):
 			err := n.sendRandomStatusMessage()
 			if err != nil {
-				log.Error().
+				logger.Error().
 					Msgf("Impossible to send random status message from %s",
 						n.conf.Socket.GetAddress())
 			}
@@ -58,23 +75,22 @@ func (n *node) runStatusMechanism() {
 }
 
 func (n *node) broadCastRoutine(rumor *types.RumorsMessage) {
-	log := n.getLogger()
 
 	neighbors := n.getNeighbors()
 
-	log.Info().Msgf("Neighbors: %v", neighbors)
+	logger.Info().Msgf("Neighbors: %v", neighbors)
 
 	randomNeighbor := getRandom(neighbors)
 
 	if len(randomNeighbor) == 0 {
-		log.Warn().
+		logger.Warn().
 			Msgf("No neighbors to broadcast from %s", n.conf.Socket.GetAddress())
 		return
 	}
 
 	transportMsg, err := n.conf.MessageRegistry.MarshalMessage(rumor)
 	if err != nil {
-		log.Error().
+		logger.Error().
 			Msgf("failed to marshal RumorsMessage: %v", err)
 		return
 	}
@@ -88,7 +104,7 @@ func (n *node) broadCastRoutine(rumor *types.RumorsMessage) {
 	pkt := createTransportPacket(&header, &transportMsg)
 
 	if err := n.conf.Socket.Send(randomNeighbor, pkt, time.Second*1); err != nil {
-		log.Error().
+		logger.Error().
 			Str("destination", randomNeighbor).
 			Err(err).
 			Msg("Failed to send rumor message")
@@ -105,16 +121,15 @@ func (n *node) listen() {
 
 	defer n.wg.Done()
 
-	log := n.getLogger()
-	log.Info().Msg("Node started.")
+	logger.Info().Msg("Node started.")
 	for {
 		select {
 		case <-n.stopCh:
-			log.Info().Msg("Stopping node.")
+			logger.Info().Msg("Stopping node.")
 			return
 		default:
 			if err := n.handleIncomingPacket(); err != nil {
-				log.Error().Msgf("%v", err)
+				logger.Error().Msgf("%v", err)
 			}
 		}
 	}

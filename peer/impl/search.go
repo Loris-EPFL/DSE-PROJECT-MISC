@@ -1,15 +1,33 @@
 package impl
 
 import (
+	"os"
 	"regexp"
 	"strings"
 	"time"
 
 	"github.com/rs/xid"
+	"github.com/rs/zerolog"
 	"go.dedis.ch/cs438/peer"
 	"go.dedis.ch/cs438/transport"
 	"go.dedis.ch/cs438/types"
 )
+
+// Global logger function
+func init() {
+	// defaultLevel can be changed to set the desired level of the logger
+	defaultLevel = zerolog.InfoLevel
+
+	if os.Getenv("GLOG") == "no" {
+		defaultLevel = zerolog.Disabled
+	}
+
+	logger = zerolog.New(logout).
+		Level(defaultLevel).
+		With().Timestamp().Logger().
+		With().Caller().Logger().
+		With().Str("role", "search.go").Logger()
+}
 
 // SearchAll returns all the names that exist matching the given regex. It
 // merges results from the local storage and from the search request reply
@@ -17,21 +35,18 @@ import (
 // update its catalog and name storage according to the SearchReplyMessages
 // received. Returns an empty result if nothing found. An error is returned
 // in case of an exceptional event.
-//
 func (n *node) SearchAll(reg regexp.Regexp, budget uint, timeout time.Duration) (names []string, err error) {
-
-	log := n.getLogger()
 
 	//1. Get local filenames
 	localFilenames := n.getLocalFilenamesMatching(&reg)
-	log.Info().Msgf("Local filenames: %v", localFilenames)
+	logger.Info().Msgf("Local filenames: %v", localFilenames)
 
 	//2. Set up channels and requestID
 	neighbors := n.getNeighbors()
 	numNeighbors := len(neighbors)
 
 	if numNeighbors == 0 {
-		log.Info().Msg("no neighbors to search from")
+		logger.Info().Msg("no neighbors to search from")
 		return localFilenames, nil
 	}
 
@@ -60,11 +75,11 @@ func (n *node) SearchAll(reg regexp.Regexp, budget uint, timeout time.Duration) 
 	for {
 		select {
 		case reply := <-replyChan:
-			log.Info().Msgf("Received search reply: %v", reply)
+			logger.Info().Msgf("Received search reply: %v", reply)
 			for _, fileInfo := range reply.Responses {
 				collectedFilenames[fileInfo.Name] = struct{}{}
 			}
-			log.Info().Msgf("Collected filenames: %v", collectedFilenames)
+			logger.Info().Msgf("Collected filenames: %v", collectedFilenames)
 
 		case <-time.After(timeout):
 
@@ -95,7 +110,6 @@ func (n *node) SearchAll(reg regexp.Regexp, budget uint, timeout time.Duration) 
 // Returns a slice of FileInfo for each matching file.
 func (n *node) SearchLocalFiles(reg *regexp.Regexp) []types.FileInfo {
 
-	log := n.getLogger()
 	var files []types.FileInfo
 	storage := n.conf.Storage.GetNamingStore()
 	blob := n.conf.Storage.GetDataBlobStore()
@@ -124,7 +138,7 @@ func (n *node) SearchLocalFiles(reg *regexp.Regexp) []types.FileInfo {
 			}
 
 		}
-		
+
 		newFileInfo := types.FileInfo{
 			Name:     name,
 			Metahash: string(metaHash),
@@ -133,7 +147,7 @@ func (n *node) SearchLocalFiles(reg *regexp.Regexp) []types.FileInfo {
 		files = append(files, newFileInfo)
 	}
 
-	log.Info().Msgf("Local files: %v", files)
+	logger.Info().Msgf("Local files: %v", files)
 	return files
 }
 
@@ -164,14 +178,13 @@ func (n *node) getLocalFilenamesMatching(reg *regexp.Regexp) []string {
 // using the provided expanding ring configuration. Returns the name of the first fully known
 // file found, or an empty string if none found.
 func (n *node) SearchFirst(pattern regexp.Regexp, conf peer.ExpandingRing) (name string, err error) {
-	log := n.getLogger()
 
 	// Get local filenames
 	if name, found := n.searchLocalFullyKnownFile(pattern); found {
 		return name, nil
 	}
 
-	log.Info().Msg("Initiating expanding ring search")
+	logger.Info().Msg("Initiating expanding ring search")
 	return n.ExpandingRingSearch(pattern, conf)
 	//set up expanding ring search
 
@@ -181,15 +194,15 @@ func (n *node) SearchFirst(pattern regexp.Regexp, conf peer.ExpandingRing) (name
 // It sends search requests with increasing budgets until a matching file is found or retries are exhausted.
 // Returns the name of the found file, or an empty string if none found.
 func (n *node) ExpandingRingSearch(pattern regexp.Regexp, conf peer.ExpandingRing) (name string, err error) {
-	log := n.getLogger()
+
 	budget := conf.Initial
 
 	for attempt := uint(0); attempt < conf.Retry; attempt++ {
-		log.Info().Msgf("Attempt %d with budget %d", attempt+1, budget)
+		logger.Info().Msgf("Attempt %d with budget %d", attempt+1, budget)
 
 		requestID, replyChan := n.SendSearchRequests(budget, &pattern)
 		if replyChan == nil {
-			log.Warn().Msg("No neighbors to search from")
+			logger.Warn().Msg("No neighbors to search from")
 			break
 		}
 		defer n.searchReplyChan.Remove(requestID)
@@ -205,7 +218,7 @@ func (n *node) ExpandingRingSearch(pattern regexp.Regexp, conf peer.ExpandingRin
 					}
 				}
 			case <-time.After(conf.Timeout):
-				log.Info().Msgf("Timeout on attemopt %d", attempt+1)
+				logger.Info().Msgf("Timeout on attemopt %d", attempt+1)
 				break Loop
 			}
 
@@ -244,12 +257,12 @@ func (n *node) SendSearchRequests(budget uint, pattern *regexp.Regexp) (string, 
 // searchLocalFullyKnownFile searches for a fully known file matching the given pattern in local storage.
 // Returns the name of the first fully known file found and true, or empty string and false if not found.
 func (n *node) searchLocalFullyKnownFile(pattern regexp.Regexp) (string, bool) {
-	log := n.getLogger()
+
 	localFiles := n.SearchLocalFiles(&pattern)
 
 	for _, fileInfo := range localFiles {
 		if n.hasAllChunks(fileInfo) {
-			log.Info().Msgf("Found full file %s locally", fileInfo.Name)
+			logger.Info().Msgf("Found full file %s locally", fileInfo.Name)
 			return fileInfo.Name, true
 		}
 	}
@@ -269,7 +282,6 @@ func (n *node) hasAllChunks(fileInfo types.FileInfo) bool {
 
 // sendForwardedSearchRequest forwards a search request to a destination with the given budget.
 func (n *node) sendForwardedSearchRequest(searchReq *types.SearchRequestMessage, dest string, budget uint) {
-	log := n.getLogger()
 
 	fwSearchReq := &types.SearchRequestMessage{
 		RequestID: searchReq.RequestID,
@@ -292,7 +304,7 @@ func (n *node) sendForwardedSearchRequest(searchReq *types.SearchRequestMessage,
 
 	err = n.conf.Socket.Send(dest, pkt, time.Second*1)
 	if err != nil {
-		log.Info().Msgf("Failed to forward search request to %s: %v", dest, err)
+		logger.Info().Msgf("Failed to forward search request to %s: %v", dest, err)
 	}
 
 }
@@ -300,7 +312,6 @@ func (n *node) sendForwardedSearchRequest(searchReq *types.SearchRequestMessage,
 // sendReplyMessage sends a search reply message with matching files back to the origin.
 func (n *node) sendReplyMessage(matchingFiles []types.FileInfo,
 	requestID string, origin string, source string) error {
-	log := n.getLogger()
 
 	searchReply := &types.SearchReplyMessage{
 		RequestID: requestID,
@@ -316,18 +327,18 @@ func (n *node) sendReplyMessage(matchingFiles []types.FileInfo,
 	replyPkt, err := n.conf.MessageRegistry.MarshalMessage(searchReply)
 
 	if err != nil {
-		log.Error().Msg("Failed to marshal SReplyMsg")
+		logger.Error().Msg("Failed to marshal SReplyMsg")
 		return err
 	}
 
 	transpPkt := createTransportPacket(&header, &replyPkt)
 
-	log.Debug().Msgf("Sending SearchReplyMessage with RequestID %s to %s", searchReply.RequestID, origin)
+	logger.Debug().Msgf("Sending SearchReplyMessage with RequestID %s to %s", searchReply.RequestID, origin)
 
 	err = n.conf.Socket.Send(source, transpPkt, time.Second*1)
 
 	if err != nil {
-		log.Error().Msgf("Failed to send SReplyMessage to %s", source)
+		logger.Error().Msgf("Failed to send SReplyMessage to %s", source)
 		return err
 	}
 
