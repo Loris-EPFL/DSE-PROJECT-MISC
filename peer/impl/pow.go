@@ -79,6 +79,7 @@ func (n *node) attemptToMine() {
 				close(stopMiningCh)
 				return
 			case <-n.newTxCh:
+				logger.Warn().Msg("New transaction arrived while mining")
 				//if a transaction arrives while mining
 				if len(txs) < int(n.MaxTxPerBlock) {
 					close(stopMiningCh)
@@ -169,13 +170,13 @@ func (n *node) mineBlock(block *types.Block, stopMiningCh chan struct{}) (*types
 			logger.Info().Msg("Mining stopped due to new transactions")
 			return nil, nil
 		case <-n.stopCh:
-			return nil, xerrors.New("Node shutting down")
+			return nil, xerrors.New("Node shutting down in mineBlock")
 		default:
 
 			block.Challenge = challenge
 			hash := n.computeBlockHash(block)
 			block.Hash = hash
-			logger.Debug().Msgf("Hash: %x", hash)
+			logger.Info().Msgf("Hash: %x", hash)
 			if n.meetsTarget(hash, target) {
 				return block, nil
 			}

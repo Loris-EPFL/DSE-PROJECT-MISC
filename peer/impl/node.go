@@ -146,7 +146,7 @@ func (n *node) Start() error {
 
 // Stop implements peer.Service
 func (n *node) Stop() error {
-
+	logger.Warn().Msg("Stopping node")
 	close(n.stopCh)
 	close(n.newTxCh)
 	logger.Info().Msg("WAITING FOR ROUTINE TO FINISH")

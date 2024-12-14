@@ -299,6 +299,52 @@ func WithPowDiff(diff int) Option {
 	}
 }
 
+// PrintBlocks prints all blocks in the blockchain of the node in a readable format
+func (t TestNode) PrintBlocks(out io.Writer) error {
+	store := t.GetStorage()
+	lastBlockHashHex := hex.EncodeToString(store.Get(storage.LastBlockKey))
+	emptyBlockHashHex := hex.EncodeToString(make([]byte, 32))
+
+	fmt.Fprintln(out, "\n=== Blockchain Blocks ===")
+	blockCount := 0
+
+	for lastBlockHashHex != emptyBlockHashHex {
+		lastBlockBuf := store.Get(lastBlockHashHex)
+		if lastBlockBuf == nil {
+			return fmt.Errorf("block not found: %s", lastBlockHashHex)
+		}
+
+		var block types.BlockchainBlock
+		err := block.Unmarshal(lastBlockBuf)
+		if err != nil {
+			return fmt.Errorf("failed to unmarshal block: %v", err)
+		}
+
+		fmt.Fprintf(out, "\nBlock #%d:\n", block.Index)
+		fmt.Fprintf(out, "  Hash: %s\n", hex.EncodeToString(block.Hash))
+		fmt.Fprintf(out, "  PrevHash: %s\n", hex.EncodeToString(block.PrevHash))
+		fmt.Fprintf(out, "  Nonce: %d\n", block.Nonce)
+
+		// Print transactions
+		fmt.Fprintln(out, "  Transactions:")
+		for i, tx := range block.Transactions {
+			fmt.Fprintf(out, "    %d. ID: %s, Type: %s\n", i+1, tx.ID, tx.Type)
+			fmt.Fprintf(out, "       Input: {Domain: %s, IP: %s, Owner: %s}\n",
+				tx.Input.DomainName, tx.Input.IP, tx.Input.Owner)
+			fmt.Fprintf(out, "       Output: {Domain: %s, IP: %s, Owner: %s}\n",
+				tx.Output.DomainName, tx.Output.IP, tx.Output.Owner)
+		}
+
+		lastBlockHashHex = hex.EncodeToString(block.PrevHash)
+		blockCount++
+	}
+
+	fmt.Fprintf(out, "\nTotal blocks: %d\n", blockCount)
+	fmt.Fprintln(out, "=== End of Blockchain ===\n")
+
+	return nil
+}
+
 // NewTestNode returns a new test node.
 func NewTestNode(t require.TestingT, f peer.Factory, trans transport.Transport,
 	addr string, opts ...Option) TestNode {
