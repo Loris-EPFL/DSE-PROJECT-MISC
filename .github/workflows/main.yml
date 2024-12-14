@@ -37,11 +37,15 @@ jobs:
       - name: Run Namecoin tests
         run: GLOG=no go test -v -race -cover -coverprofile=namecoin_coverage.out ./peer/impl/
 
+      - name: Run HW0 tests
+        run: GLOG=no go test -v -race -cover -coverprofile=hw0_coverage.out -tags hw0 -run '^Test_HW' ./peer/impl/
+
       # Merge all coverage profiles into a single file
       - name: Merge Coverage Files
         run: |
           echo "mode: set" > coverage.out
           tail -n +2 namecoin_coverage.out >> coverage.out
+          tail -n +2 hw0_coverage.out >> coverage.out
 
       # Upload the merged coverage profile as an artifact
       - name: Archive code coverage results
