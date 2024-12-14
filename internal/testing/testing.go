@@ -149,7 +149,7 @@ type configTemplate struct {
 	paxosThreshold     func(uint) int
 	paxosID            uint
 	paxosProposerRetry time.Duration
-	PowBits            int
+	PowDiff            int
 }
 
 func newConfigTemplate() configTemplate {
@@ -293,9 +293,9 @@ func WithPaxosProposerRetry(d time.Duration) Option {
 	}
 }
 
-func WithPowBits(bits int) Option {
+func WithPowDiff(diff int) Option {
 	return func(ct *configTemplate) {
-		ct.PowBits = bits
+		ct.PowDiff = diff
 	}
 }
 
@@ -326,6 +326,7 @@ func NewTestNode(t require.TestingT, f peer.Factory, trans transport.Transport,
 	config.PaxosThreshold = template.paxosThreshold
 	config.PaxosID = template.paxosID
 	config.PaxosProposerRetry = template.paxosProposerRetry
+	config.PowDiff = template.PowDiff
 
 	node := f(config)
 

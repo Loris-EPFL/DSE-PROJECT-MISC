@@ -175,6 +175,7 @@ func (n *node) mineBlock(block *types.Block, stopMiningCh chan struct{}) (*types
 			block.Challenge = challenge
 			hash := n.computeBlockHash(block)
 			block.Hash = hash
+			logger.Debug().Msgf("Hash: %x", hash)
 			if n.meetsTarget(hash, target) {
 				return block, nil
 			}

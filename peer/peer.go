@@ -82,7 +82,7 @@ type Configuration struct {
 	PaxosProposerRetry time.Duration
 
 	//Difficulty is the number of leading zeros in the hash of the block
-	PowBits uint
+	PowDiff int
 }
 
 // Backoff describes parameters for a backoff algorithm. The initial time must

@@ -47,10 +47,10 @@ func Test_HandleDNSReadMessage(t *testing.T) {
 	transp := channel.NewTransport()
 
 	//Create 2 nodes and a reader (sender type since he "propose" a readDNSRequest)
-	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithPowBits(3))
+	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithPowDiff(0x1f0e1111))
 	defer node1.Stop()
 
-	node2 := z.NewTestNode(t, peerFac, transp, "127.0.0.2:0", z.WithPowBits(3))
+	node2 := z.NewTestNode(t, peerFac, transp, "127.0.0.2:0", z.WithPowDiff(0x1f0e1111))
 	defer node2.Stop()
 
 	proposer, err := z.NewSenderSocket(transp, "127.0.0.3:0")
@@ -200,10 +200,10 @@ func Test_HandleDNSUpdateScenario(t *testing.T) {
 	transp := channel.NewTransport()
 
 	//Create 2 nodes and a reader (sender type since he "propose" a readDNSRequest)
-	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithPowBits(3))
+	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithPowDiff(0x1F111111))
 	defer node1.Stop()
 
-	node2 := z.NewTestNode(t, peerFac, transp, "127.0.0.2:0", z.WithPowBits(3))
+	node2 := z.NewTestNode(t, peerFac, transp, "127.0.0.2:0", z.WithPowDiff(0x1F111111))
 	defer node2.Stop()
 
 	proposer, err := z.NewSenderSocket(transp, "127.0.0.3:0")
@@ -482,8 +482,8 @@ func Test_HandleDNSUpdateScenario(t *testing.T) {
 
 	// Send NameUpdate transaction from reader POV (should  work now)
 
-	//TODO: check for if the sender is the actual OWNER !!!!!!!
 	err = proposer.Send(node2.GetAddr(), packet, time.Second*1)
+	require.NoError(t, err)
 
 	insSize = len(node1.GetIns()) //get the size of ins before the message
 
