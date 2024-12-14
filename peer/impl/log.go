@@ -25,10 +25,11 @@ func init() {
 		defaultLevel = zerolog.Disabled
 	}
 
-
     logger = zerolog.New(logout).
         Level(defaultLevel).
         With().
         Timestamp().
         Logger()
+
+
 }
