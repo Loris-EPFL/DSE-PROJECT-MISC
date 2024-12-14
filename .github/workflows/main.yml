@@ -35,7 +35,7 @@ jobs:
 
       # Here we run our tests for Namecoin
       - name: Run Namecoin tests
-        run: GLOG=no go test -v -race -coverprofile=namecoin_coverage.out ./peer/impl/
+        run: GLOG=no go test -v -race -cover -coverprofile=namecoin_coverage.out ./peer/impl/
 
       # Merge all coverage profiles into a single file
       - name: Merge Coverage Files
@@ -70,4 +70,3 @@ jobs:
         with:
           coverage-artifact-name: "code-coverage"
           coverage-file-name: "coverage.out"
-          root-package: github.com/cs438-epfl/2024-proj-namecoin-group-33

@@ -16,6 +16,19 @@ type Token struct {
 	mu          sync.Mutex
 }
 
+// Global Token instance
+var (
+	nct  *Token
+	once sync.Once
+)
+
+// Initialize the Token in the init function
+func init() {
+	once.Do(func() {
+		nct = NewToken("Namecoin Token", "NTC", 0)
+	})
+}
+
 // NewToken initializes a new Token with the given name, symbol, and initial supply.
 func NewToken(name, symbol string, initialSupply uint64) *Token {
 	return &Token{
@@ -24,20 +37,6 @@ func NewToken(name, symbol string, initialSupply uint64) *Token {
 		TotalSupply: initialSupply, // May not be needed if we only mint and burn anyway (set to 0).
 		Balances:    NewSafeMap[string, uint64](),
 	}
-}
-
-// GenerateAddress creates a unique address from a public key.
-// TODO Implement this function
-func GenerateAddress(pubKey uint64) string {
-	/*
-		This should be called on peer creation to generate an address for said peer
-		Remains to be decided on the final implementation but we can use one of the existing fields of a peer
-		as a "public key" and hash it to get a unique value as a balance address.
-		For additional robustness, we can check if address already exists in Balances and if so, iteratively
-		change pubKey before hashing until we find an adress not already in the mapping yet (probably not needed).
-	*/
-	fmt.Println("Error: GenerateAddress is not yet implemented!")
-	return "1234"
 }
 
 // AddAddress adds a new address with an optional initial balance.

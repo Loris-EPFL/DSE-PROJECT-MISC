@@ -108,6 +108,11 @@ func NewPeer(conf peer.Configuration) peer.Peer {
 	n.conf.MessageRegistry.RegisterMessageCallback(types.TransactionMessage{}, n.handleTransactionMessage)
 	n.conf.MessageRegistry.RegisterMessageCallback(types.BlockMessage{}, n.handleBlockMessage)
 
+	// Initialize node's wallet
+	if err := nct.AddAddress(conf.Socket.GetAddress()); err != nil {
+		logger.Error().Err(err).Msg("Failed to add new node's address to the NTC balance.")
+	}
+
 	return n
 }
 
