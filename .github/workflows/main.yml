@@ -54,6 +54,28 @@ jobs:
           name: code-coverage
           path: coverage.out
 
+      # Convert coverage.out to Cobertura XML
+      - name: Convert coverage to Cobertura
+        run: |
+          go install github.com/t-yuki/gocover-cobertura@latest
+          gocover-cobertura < coverage.out > coverage.xml
+
+      # Upload Cobertura coverage data to CodeScene only when pushing to main
+      - name: Upload coverage data to CodeScene
+        if: github.ref == 'refs/heads/main'
+        run: |
+          curl -Os https://downloads.codescene.io/code-coverage/linux/upload.sh
+          chmod +x upload.sh
+          ./upload.sh \
+            --repopath "$(pwd)" \
+            --format cobertura \
+            --metric line-coverage \
+            --file coverage.xml
+        env:
+          CS_TOKEN: ${{ secrets.CS_TOKEN }}
+        shell: bash
+
+  # This is to comment the PR's with coverage evolution from the current changes
   code_coverage:
     name: "Code Coverage Report"
     if: github.event_name == 'pull_request'
