@@ -35,10 +35,11 @@ func Test_HandleExpiredDomain(t *testing.T) {
 	transp := channel.NewTransport()
 
 	// Create nodes with a higher difficulty to ensure longer mining time
-	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithPowDiff(0x1fffffff))
+	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithPowDiff(difficulty))
 	defer node1.Stop()
 
-	node2 := z.NewTestNode(t, peerFac, transp, "127.0.0.2:0", z.WithPowDiff(0x1fffffff))
+	node2 := z.NewTestNode(t, peerFac, transp, "127.0.0.2:0", z.WithPowDiff(difficulty))
+
 	defer node2.Stop()
 
 	//Create proposers to send the read request

@@ -31,17 +31,23 @@ func init() {
 		With().Timestamp().Logger().
 		With().Caller().Logger().
 		With().Str("role", "Test File").Logger()
+
 }
+
+var (
+	difficulty = 0x1d00ffff
+)
 
 // Test handleDNSReadMessage
 func Test_HandleDNSReadMessage(t *testing.T) {
 	transp := channel.NewTransport()
 
 	//Create 2 nodes and a reader (sender type since he "propose" a readDNSRequest)
-	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithPowDiff(0x1f0e1111))
+	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithPowDiff(difficulty))
 	defer node1.Stop()
 
-	node2 := z.NewTestNode(t, peerFac, transp, "127.0.0.2:0", z.WithPowDiff(0x1f0e1111))
+	node2 := z.NewTestNode(t, peerFac, transp, "127.0.0.2:0", z.WithPowDiff(difficulty))
+
 	defer node2.Stop()
 
 	proposer, err := z.NewSenderSocket(transp, "127.0.0.3:0")
@@ -191,10 +197,11 @@ func Test_HandleDNSUpdateScenario(t *testing.T) {
 	transp := channel.NewTransport()
 
 	//Create 2 nodes and a reader (sender type since he "propose" a readDNSRequest)
-	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithPowDiff(0x1F111111))
+	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithPowDiff(difficulty))
 	defer node1.Stop()
 
-	node2 := z.NewTestNode(t, peerFac, transp, "127.0.0.2:0", z.WithPowDiff(0x1F111111))
+	node2 := z.NewTestNode(t, peerFac, transp, "127.0.0.2:0", z.WithPowDiff(difficulty))
+
 	defer node2.Stop()
 
 	proposer, err := z.NewSenderSocket(transp, "127.0.0.3:0")
@@ -549,7 +556,8 @@ func Test_HandleConcurrentDNSRegistration(t *testing.T) {
 	transp := channel.NewTransport()
 
 	// Create nodes with a higher difficulty to ensure longer mining time
-	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithPowDiff(0x1fffffff))
+	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithPowDiff(difficulty))
+
 	defer node1.Stop()
 
 	proposer1, err := z.NewSenderSocket(transp, "127.0.0.3:0")

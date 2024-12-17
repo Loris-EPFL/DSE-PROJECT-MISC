@@ -56,92 +56,60 @@ func (n *node) minerRoutine() {
 
 func (n *node) attemptToMine() {
 
-	n.miningMu.Lock()
-	defer n.miningMu.Unlock()
+	for {
+		txs := n.getTxsFromMempool(n.MaxTxPerBlock)
 
-	logger.Info().Msg("Attempting to mine a new block")
 
-	txs := n.getTxsFromMempool(n.MaxTxPerBlock)
+		if len(txs) == 0 {
+			logger.Info().Msg("No transactions to mine")
+			return
+		}
 
-	if len(txs) == 0 {
-		logger.Info().Msg("No transactions to mine")
+		candidateBlock := n.createCandidateBlock(txs)
+		stopMiningCh := make(chan struct{})
+
+		minedBlock, err := n.mineBlock(candidateBlock, stopMiningCh)
+		if err != nil {
+			logger.Error().Err(err).Msg("Failed to mine block")
+			return
+		}
+
+		if minedBlock == nil {
+			// Mining stopped because new txs arrived
+			continue
+		}
+
+		// Create block message
+		blockMsg := types.BlockMessage{
+			Block: *minedBlock,
+		}
+
+
+		transpBlockMsg, err := n.conf.MessageRegistry.MarshalMessage(&blockMsg)
+		if err != nil {
+			logger.Error().Err(err).Msg("Failed to marshal block message")
+			return
+		}
+
+		// Broadcast the block
+		err = n.Broadcast(transpBlockMsg)
+		if err != nil {
+			logger.Error().Err(err).Msg("Failed to broadcast block")
+			return
+		}
+
+		// Store the block in local blockchain storage
+		err = n.addBlockToBlockchain(minedBlock)
+		if err != nil {
+			logger.Error().Err(err).Msg("Failed to store block in blockchain")
+			return
+		}
+
+		logger.Warn().Any("Block", minedBlock).Any("txs", minedBlock.Transactions).Any("mempool", txs).Msg("Block added to blockchain")
+
+		n.removeTxsFromMempool(minedBlock.Transactions)
 		return
 	}
-
-	candidateBlock := n.createCandidateBlock(txs)
-
-	stopMiningCh := make(chan struct{})
-
-	/*
-
-		n.wg.Add(1)
-		logger.Debug().Msgf("Entering Attempting to mine routine")
-		go func() {
-			defer n.wg.Done()
-			for {
-
-				select {
-				case <-n.stopCh:
-					close(stopMiningCh)
-					return
-				case <-n.newTxCh:
-
-					logger.Info().Any("txs in mempool", txs).Msg("New transaction arrived while mining")
-					//if a transaction arrives while mining
-					if len(txs) < int(n.MaxTxPerBlock) {
-						close(stopMiningCh)
-						n.attemptToMine()
-						return
-
-					}
-				default:
-					time.Sleep(time.Second)
-				}
-			}
-		}()
-	*/
-
-	minedBlock, err := n.mineBlock(candidateBlock, stopMiningCh)
-
-	if err != nil {
-		logger.Error().Err(err).Msg("Failed to mine block")
-		return
-	}
-
-	if minedBlock == nil {
-		//mining stop because new txs arrived
-		return
-	}
-
-	logger.Info().Any("block", minedBlock).Any("number of txs", len(minedBlock.Transactions)).Msg("Block mined successfully")
-
-	//Create block message
-	blockMsg := types.BlockMessage{
-		Block: *minedBlock,
-	}
-
-	transpBlockMsg, err := n.conf.MessageRegistry.MarshalMessage(&blockMsg)
-
-	if err != nil {
-		logger.Error().Err(err).Msg("Failed to marshal block message")
-		return
-	}
-
-	//Broadcast the block
-	err = n.Broadcast(transpBlockMsg)
-	if err != nil {
-		logger.Error().Err(err).Msg("Failed to broadcast block")
-		return
-	}
-
-	//Store the block in local blockchain storage
-	err = n.addBlockToBlockchain(minedBlock)
-	if err != nil {
-		logger.Error().Err(err).Msg("Failed to store block in blockchain")
-		return
-	}
-
-	n.removeTxsFromMempool(minedBlock.Transactions)
 }
 
 func (n *node) createCandidateBlock(txs []types.Transaction) *types.Block {

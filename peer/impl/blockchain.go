@@ -130,9 +130,7 @@ func (n *node) addBlockToBlockchain(block *types.Block) error {
 
 	n.incrementHeight()
 
-	logger.Info().Msgf("Updating current height to %d", n.currentHeight)
-
-	logger.Info().Any("Block added to blockchain:", hashHex).Msg("Block added and UTXO set updated successfully")
+	logger.Info().Any("height", n.currentHeight.currentHeight).Any("Block hash:", hashHex).Msg("Block added and UTXO set updated successfully")
 
 	n.PrintAllNonces()
 	return nil
