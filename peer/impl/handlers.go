@@ -505,12 +505,28 @@ func (n *node) handleDNSReadRequestMessage(msg types.Message, pkt transport.Pack
 		return xerrors.Errorf("Domain %s not found", DNSReadRequest.Domain)
 	}
 
+	// Check if the domain has expired
+	DomainName := UTXO.DomainName
+	Expiration := UTXO.Expiration
+	IPAddress := UTXO.IP
+	Owner := UTXO.Owner
+	DomainExists := true
+
+	if UTXO.Expiration.Before(time.Now()) {
+		logger.Warn().Msgf("Domain %s has expired.", DNSReadRequest.Domain)
+		DomainName = UTXO.DomainName
+		Expiration = UTXO.Expiration
+		IPAddress = "expired"
+		Owner = UTXO.Owner
+		DomainExists = false
+	}
+
 	DNSReadReply := &types.DNSReadReplyMessage{
-		Domain:     UTXO.DomainName,
-		IPAddress:  UTXO.IP,
-		Owner:      UTXO.Owner,
-		Exists:     true,
-		Expiration: UTXO.Expiration,
+		Domain:     DomainName,
+		IPAddress:  IPAddress,
+		Owner:      Owner,
+		Exists:     DomainExists,
+		Expiration: Expiration,
 	}
 
 	// Send DNSReadReply to the source
@@ -581,8 +597,6 @@ func (n *node) handleTransactionMessage(msg types.Message, pkt transport.Packet)
 	logger.Info().Msgf("Received transaction %s and added it to mempool", txMsg.Tx.ID)
 
 	n.newTxCh <- struct{}{}
-
-	logger.Info().Msg("New transaction received, notifying mining routine")
 
 	return nil
 }

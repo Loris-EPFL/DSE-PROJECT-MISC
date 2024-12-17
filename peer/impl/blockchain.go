@@ -127,7 +127,10 @@ func (n *node) addBlockToBlockchain(block *types.Block) error {
 	bcStore.Set(storage.LastBlockKey, block.Hash)
 
 	// Update the current height
-	n.currentHeight++
+
+	n.incrementHeight()
+
+	logger.Info().Msgf("Updating current height to %d", n.currentHeight)
 
 	logger.Info().Any("Block added to blockchain:", hashHex).Msg("Block added and UTXO set updated successfully")
 
@@ -286,7 +289,7 @@ func (n *node) createGenesisBlock() *types.Block {
 	block := &types.Block{
 
 		PrevBlockHash: hash[:],
-		Nonce:         1,
+		Nonce:         0,
 		Transactions:  []*types.Transaction{},
 	}
 
@@ -295,4 +298,10 @@ func (n *node) createGenesisBlock() *types.Block {
 	n.addBlockToBlockchain(block)
 
 	return block
+}
+
+func (n *node) incrementHeight() {
+	n.currentHeight.mu.Lock()
+	defer n.currentHeight.mu.Unlock()
+	n.currentHeight.currentHeight++
 }

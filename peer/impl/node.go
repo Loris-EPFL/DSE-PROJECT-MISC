@@ -31,17 +31,23 @@ type sequenceNumber struct {
 	seqNumber uint
 }
 
+type currentHeight struct {
+	mu            sync.Mutex
+	currentHeight uint
+}
+
 type node struct {
 	peer.Peer
 	conf           peer.Configuration
 	wg             sync.WaitGroup
 	sequenceNumber sequenceNumber
 
-	currentHeight uint
+	currentHeight currentHeight
 
 	stopCh  chan struct{}
 	newTxCh chan struct{}
 
+	miningMu 			  sync.Mutex
 	ackChannel            SafeMap[string, chan *types.AckMessage]
 	directPeers           SafeMap[string, struct{}]
 	receivedSeq           SafeMap[string, uint]
@@ -82,7 +88,7 @@ func NewPeer(conf peer.Configuration) peer.Peer {
 		catalog:         NewSafeCatalog(),
 		UTXOSet:         NewSafeMap[string, types.UTXO](),
 		mempool:         NewSafeMap[string, types.Transaction](),
-		currentHeight:   0,
+		currentHeight:   currentHeight{currentHeight: 0},
 		MaxTxPerBlock:   3,
 	}
 
@@ -152,5 +158,6 @@ func (n *node) Stop() error {
 	logger.Info().Msg("WAITING FOR ROUTINE TO FINISH")
 	n.wg.Wait()
 	logger.Info().Msg("ALL ROUTINES FINISHED")
+	logger.Info().Any("UTXO", n.UTXOSet.ToMap()).Msg("block at end")
 	return nil
 }

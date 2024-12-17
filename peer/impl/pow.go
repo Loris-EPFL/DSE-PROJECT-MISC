@@ -46,6 +46,7 @@ func (n *node) minerRoutine() {
 			logger.Info().Msg("Stopping miner routine")
 			return
 		case <-n.newTxCh:
+			logger.Info().Msg("New transaction arrived while mining")
 			n.attemptToMine()
 		default:
 			time.Sleep(time.Second)
@@ -54,6 +55,9 @@ func (n *node) minerRoutine() {
 }
 
 func (n *node) attemptToMine() {
+
+	n.miningMu.Lock()
+	defer n.miningMu.Unlock()
 
 	logger.Info().Msg("Attempting to mine a new block")
 
@@ -68,29 +72,37 @@ func (n *node) attemptToMine() {
 
 	stopMiningCh := make(chan struct{})
 
-	n.wg.Add(1)
-	logger.Debug().Msgf("Entering Attempting to mine routine")
-	go func() {
-		defer n.wg.Done()
-		for {
+	/*
 
-			select {
-			case <-n.stopCh:
-				close(stopMiningCh)
-				return
-			case <-n.newTxCh:
-				//if a transaction arrives while mining
-				if len(txs) < int(n.MaxTxPerBlock) {
+		n.wg.Add(1)
+		logger.Debug().Msgf("Entering Attempting to mine routine")
+		go func() {
+			defer n.wg.Done()
+			for {
+
+				select {
+				case <-n.stopCh:
 					close(stopMiningCh)
 					return
+				case <-n.newTxCh:
+
+					logger.Info().Any("txs in mempool", txs).Msg("New transaction arrived while mining")
+					//if a transaction arrives while mining
+					if len(txs) < int(n.MaxTxPerBlock) {
+						close(stopMiningCh)
+						n.attemptToMine()
+						return
+
+					}
+				default:
+					time.Sleep(time.Second)
 				}
-			default:
-				time.Sleep(time.Second)
 			}
-		}
-	}()
+		}()
+	*/
 
 	minedBlock, err := n.mineBlock(candidateBlock, stopMiningCh)
+
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed to mine block")
 		return
@@ -101,7 +113,7 @@ func (n *node) attemptToMine() {
 		return
 	}
 
-	logger.Info().Msg("Block mined successfully")
+	logger.Info().Any("block", minedBlock).Any("number of txs", len(minedBlock.Transactions)).Msg("Block mined successfully")
 
 	//Create block message
 	blockMsg := types.BlockMessage{
@@ -134,18 +146,17 @@ func (n *node) attemptToMine() {
 
 func (n *node) createCandidateBlock(txs []types.Transaction) *types.Block {
 
-	logger.Info().Msg("Creating candidate block")
-	logger.Info().Msgf("Number of transactions: %d", len(txs))
-	logger.Info().Msgf("Current nonce: %d", n.getCurrentNonce())
 	prevHash := n.getLastBlockHash()
+
 	nonce := n.getCurrentNonce()
 
-	newNonce := nonce + 1
 	block := &types.Block{
 		PrevBlockHash: prevHash,
 		Transactions:  txSliceToPtr(txs),
-		Nonce:         int(newNonce),
+		Nonce:         int(nonce),
 	}
+	logger.Info().Any("TxID", txs).Any("Nonce ", n.getCurrentNonce()).Msg("Creating candidate block")
+
 	return block
 }
 
@@ -166,7 +177,6 @@ func (n *node) mineBlock(block *types.Block, stopMiningCh chan struct{}) (*types
 	for {
 		select {
 		case <-stopMiningCh:
-			logger.Info().Msg("Mining stopped due to new transactions")
 			return nil, nil
 		case <-n.stopCh:
 			return nil, xerrors.New("Node shutting down")
@@ -198,6 +208,42 @@ func (n *node) getTxsFromMempool(limit uint) []types.Transaction {
 		}
 	}
 	return txs
+}
+
+// updateMempool combines the previous transactions with new transactions from the mempool
+func (n *node) updateMempool(previousTxs []types.Transaction, limit uint) []types.Transaction {
+	// Get new transactions from the mempool
+	newTxs := n.getTxsFromMempool(limit)
+
+	logger.Warn().Any("previous txs", previousTxs).Any("new txs", newTxs).Msg("Updating mempool")
+
+	// Create a map to track unique transactions
+	txMap := make(map[string]types.Transaction)
+
+	// Add previous transactions to the map
+	for _, tx := range previousTxs {
+		txMap[tx.ID] = tx
+	}
+
+	// Add new transactions to the map
+	for _, tx := range newTxs {
+		if _, exists := txMap[tx.ID]; !exists {
+			txMap[tx.ID] = tx
+		}
+	}
+
+	// Convert the map back to a slice
+	updatedTxs := make([]types.Transaction, 0, len(txMap))
+	for _, tx := range txMap {
+		updatedTxs = append(updatedTxs, tx)
+	}
+
+	// Limit the number of transactions to the specified limit
+	if uint(len(updatedTxs)) > limit {
+		updatedTxs = updatedTxs[:limit]
+	}
+
+	return updatedTxs
 }
 
 func (n *node) removeTxsFromMempool(txs []*types.Transaction) {
@@ -258,7 +304,9 @@ func (n *node) computeTarget(bits int) *big.Int {
 
 func (n *node) getCurrentNonce() uint64 {
 	// dummy implementation
-	return uint64(n.currentHeight)
+	n.currentHeight.mu.Lock()
+	defer n.currentHeight.mu.Unlock()
+	return uint64(n.currentHeight.currentHeight)
 }
 
 // PrintAllNonces prints the nonce of each block in the blockchain
