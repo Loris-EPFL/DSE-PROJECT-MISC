@@ -3,6 +3,7 @@ package impl
 import (
 	"os"
 	"sync"
+	"time"
 
 	// Import the SafeMap from utils
 	"github.com/rs/zerolog"
@@ -47,7 +48,7 @@ type node struct {
 	stopCh  chan struct{}
 	newTxCh chan struct{}
 
-	miningMu 			  sync.Mutex
+	//miningMu 			  sync.Mutex
 	ackChannel            SafeMap[string, chan *types.AckMessage]
 	directPeers           SafeMap[string, struct{}]
 	receivedSeq           SafeMap[string, uint]
@@ -59,7 +60,7 @@ type node struct {
 	handledDataRequests   SafeMap[string, string]
 	handledSearchRequests SafeMap[string, string]
 	catalog               SafeCatalog
-
+	lastBlockTime         time.Time
 	//Added DNS store
 	UTXOSet SafeMap[string, types.UTXO]        //Mapping from Domain to UTXO
 	mempool SafeMap[string, types.Transaction] //Mapping from Transaction ID to Transaction

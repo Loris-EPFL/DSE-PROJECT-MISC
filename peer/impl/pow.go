@@ -59,7 +59,6 @@ func (n *node) attemptToMine() {
 	for {
 		txs := n.getTxsFromMempool(n.MaxTxPerBlock)
 
-
 		if len(txs) == 0 {
 			logger.Info().Msg("No transactions to mine")
 			return
@@ -84,7 +83,6 @@ func (n *node) attemptToMine() {
 			Block: *minedBlock,
 		}
 
-
 		transpBlockMsg, err := n.conf.MessageRegistry.MarshalMessage(&blockMsg)
 		if err != nil {
 			logger.Error().Err(err).Msg("Failed to marshal block message")
@@ -108,6 +106,7 @@ func (n *node) attemptToMine() {
 		logger.Warn().Any("Block", minedBlock).Any("txs", minedBlock.Transactions).Any("mempool", txs).Msg("Block added to blockchain")
 
 		n.removeTxsFromMempool(minedBlock.Transactions)
+		n.lastBlockTime = time.Now()
 		return
 	}
 }
@@ -138,9 +137,10 @@ func txSliceToPtr(txs []types.Transaction) []*types.Transaction {
 }
 
 func (n *node) mineBlock(block *types.Block, stopMiningCh chan struct{}) (*types.Block, error) {
+	n.conf.PowDiff = n.adjustDifficulty(n.lastBlockTime, time.Now())
 
 	challenge := 0
-	target := n.computeTarget(0x1f111111)
+	target := n.computeTarget(n.conf.PowDiff)
 
 	for {
 		select {
@@ -337,4 +337,15 @@ func isAllZeros(data []byte) bool {
 		}
 	}
 	return true
+}
+func (n *node) adjustDifficulty(previousTime, currentTime time.Time) int {
+	targetBlockTime := 10 * time.Second
+	actualBlockTime := currentTime.Sub(previousTime)
+
+	if actualBlockTime < targetBlockTime/2 {
+		return n.conf.PowDiff + 1
+	} else if actualBlockTime > targetBlockTime*2 {
+		return n.conf.PowDiff - 1
+	}
+	return n.conf.PowDiff
 }

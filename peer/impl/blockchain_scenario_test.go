@@ -35,7 +35,7 @@ func init() {
 }
 
 var (
-	difficulty = 0x1d00ffff
+	difficulty = 0x1f0fffff
 )
 
 // Test handleDNSReadMessage
