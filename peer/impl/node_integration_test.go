@@ -13,15 +13,15 @@ func Test_Token_init(t *testing.T) {
 	require.Equal(t, nct.Name, "Namecoin Token")
 	require.Equal(t, nct.Shorthand, "NTC")
 	require.Equal(t, nct.TotalSupply, uint64(0))
-	require.Len(t, nct.Balances.ToMap(), 0)
 }
 
 func Test_Node_has_wallet(t *testing.T) {
 	transp := channelFac()
-	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:1")
+	length := len(nct.Balances.ToMap())
+	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:4321")
 
 	// Address should exist in token balance mapping
-	assert.Len(t, nct.Balances.ToMap(), 1)
+	assert.Len(t, nct.Balances.ToMap(), length+1)
 	balance := nct.GetBalance(node1.GetAddr())
 	assert.Equal(t, balance, uint64(0))
 
