@@ -70,6 +70,8 @@ func Test_HandleDNSReadMessage(t *testing.T) {
 	Expiration := time.Now().Add(time.Hour)
 	Owner := "owner1"
 
+	nct.Balances.Add(Owner, 100) //Add balance to the owner
+
 	// Create NameNew transaction
 	hash := sha256.New()
 	hash.Write([]byte("random_salt" + dnsEntry.Domain))
@@ -225,6 +227,8 @@ func Test_HandleDNSUpdateScenario(t *testing.T) {
 	Expiration := time.Now().Add(time.Hour)
 	Owner := "owner1"
 
+	nct.Balances.Add(Owner, 100) //Add balance to the owner
+
 	// Create NameNew transaction
 	hash := sha256.New()
 	hash.Write([]byte("random_salt" + dnsEntry.Domain))
@@ -356,6 +360,8 @@ func Test_HandleDNSUpdateScenario(t *testing.T) {
 	newExpiration := time.Now().Add(time.Hour * 2)
 	newOwner := "owner2"
 	newIPAddress := "200.200.200.200"
+
+	nct.Balances.Add(newOwner, 100) //Add balance to the owner
 
 	nameUpdateTx := types.Transaction{
 		ID:          "tx3",
@@ -577,6 +583,8 @@ func Test_HandleConcurrentDNSRegistration(t *testing.T) {
 	Expiration := time.Now().Add(time.Hour)
 	Owner := "owner1"
 
+	nct.Balances.Add(Owner, 100) //Add balance to the owner
+
 	// Create NameNew transaction
 	hash := sha256.New()
 	hash.Write([]byte("random_salt" + dnsEntry.Domain))
@@ -648,6 +656,9 @@ func Test_HandleConcurrentDNSRegistration(t *testing.T) {
 	salt2 := "random_salt2"
 	IPAddress2 := "192.168.1.2"
 	owner2 := "owner2"
+
+	nct.Balances.Add(owner2, 100) //Add balance to the owner2
+
 	Expiration2 := time.Now().Add(time.Hour)
 	hash2 := sha256.New()
 	hash2.Write([]byte(salt2 + domain2))

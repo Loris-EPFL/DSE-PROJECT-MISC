@@ -585,10 +585,10 @@ func (n *node) handleTransactionMessage(msg types.Message, pkt transport.Packet)
 		return fmt.Errorf("expected TransactionMessage, got %T", msg)
 	}
 
-	balanceOwner, ok := nct.Balances.Get(txMsg.Tx.Input.Owner)
+	balanceOwner, ok := nct.Balances.Get(txMsg.Tx.Output.Owner)
 
 	if !ok {
-		return xerrors.Errorf("Owner %s not found in token balance mapping", txMsg.Tx.Input.Owner)
+		return xerrors.Errorf("Owner %s not found in token balance mapping", txMsg.Tx.Output.Owner)
 	}
 
 	if balanceOwner < (txMsg.Tx.Fees) {

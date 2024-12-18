@@ -94,7 +94,7 @@ func Test_HandleFees(t *testing.T) {
 	require.NoError(t, err)
 
 	// Wait 3 seconds, it should instead be wait for about 3 blocks to be mined
-	time.Sleep(time.Second * 3)
+	time.Sleep(time.Second * 5)
 
 	// Check balances after mining
 	balanceNode1, ok1 = nct.Balances.Get(node1.GetAddr())

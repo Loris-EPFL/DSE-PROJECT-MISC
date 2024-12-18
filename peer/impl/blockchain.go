@@ -63,27 +63,6 @@ func (n *node) addBlockToBlockchain(block *types.Block) error {
 	if !genesis {
 		for _, tx := range block.Transactions {
 
-			// get Current Balance of Owner of TX
-			previousBalance, ok := nct.Balances.Get(tx.Output.Owner)
-
-			if !ok {
-				logger.Warn().Any("owner", tx.Output.Owner).Msg("Owner not found in balances")
-				return xerrors.New("Owner not found in balances")
-			}
-
-			//For each tx, the owner must have enough balance to pay the fees, and we decrease the balance by the fees
-			if previousBalance < tx.Fees {
-				logger.Warn().Any("owner", tx.Output.Owner).Any("fees", tx.Fees).Msg("Owner does not have enough balance to pay fees")
-				return xerrors.New("Owner does not have enough balance to pay fees")
-			}
-
-			newBalance := previousBalance - tx.Fees
-
-			logger.Info().Any("owner", tx.Output.Owner).Any("newBalance", newBalance).Msg("Owner balance updated")
-
-			//Consume Fees
-			nct.Balances.Add(tx.Output.Owner, newBalance)
-
 			switch tx.Type {
 			case types.NameNew:
 				// NameNew: produce UTXO with hashed domain
