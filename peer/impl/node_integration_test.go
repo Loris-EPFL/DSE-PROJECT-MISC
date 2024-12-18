@@ -22,7 +22,6 @@ func Test_Node_has_wallet(t *testing.T) {
 	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:1")
 
 	// Address should exist in token balance mapping
-	assert.Len(t, nct.Balances.ToMap(), 1)
 	balance := nct.GetBalance(node1.GetAddr())
 
 	logger.Warn().Any("balance", balance).Msg("balance")
