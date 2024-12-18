@@ -35,10 +35,10 @@ jobs:
 
       # Here we run our tests for Namecoin
       - name: Run Namecoin tests
-        run: GLOG=no go test -v -race -cover -coverprofile=namecoin_coverage.out ./peer/impl/
+        run: GLOG=no go test -v -race -coverpkg=go.dedis.ch/cs438/peer/impl -coverprofile=namecoin_coverage.out ./peer/impl/
 
       - name: Run HW0 tests
-        run: GLOG=no go test -v -race -cover -coverprofile=hw0_coverage.out -tags hw0 -run '^Test_HW' ./peer/impl/
+        run: GLOG=no go test -v -race -coverpkg=go.dedis.ch/cs438/peer/impl -coverprofile=hw0_coverage.out ./peer/tests/HW0/unit
 
       # Merge all coverage profiles into a single file
       - name: Merge Coverage Files
@@ -52,13 +52,13 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: code-coverage
-          path: namecoin_coverage.out
+          path: coverage.out
 
       # Convert coverage.out to Cobertura XML
       - name: Convert coverage to Cobertura
         run: |
           go install github.com/t-yuki/gocover-cobertura@latest
-          gocover-cobertura < namecoin_coverage.out > coverage.xml
+          gocover-cobertura < coverage.out > coverage.xml
 
       # Upload Cobertura coverage data to CodeScene only when pushing to main
       - name: Upload coverage data to CodeScene
