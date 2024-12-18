@@ -52,13 +52,13 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: code-coverage
-          path: coverage.out
+          path: namecoin_coverage.out
 
       # Convert coverage.out to Cobertura XML
       - name: Convert coverage to Cobertura
         run: |
           go install github.com/t-yuki/gocover-cobertura@latest
-          gocover-cobertura < coverage.out > coverage.xml
+          gocover-cobertura < namecoin_coverage.out > coverage.xml
 
       # Upload Cobertura coverage data to CodeScene only when pushing to main
       - name: Upload coverage data to CodeScene
