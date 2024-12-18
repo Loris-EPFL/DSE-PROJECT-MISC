@@ -5,7 +5,7 @@ import (
 	"sync"
 )
 
-// TODO Use node logger (zerolog) once implementation is more functional to ensure consistent logging practices
+// TODO Use node logger (zerolog) once implementation is more functional to ensure consistent logging practices.
 
 // Token represents a simple token system.
 type Token struct {

@@ -35,15 +35,15 @@ jobs:
 
       # Here we run our tests for Namecoin
       - name: Run Namecoin tests
-        run: GLOG=no go test -v -race -coverpkg=go.dedis.ch/cs438/peer/impl -coverprofile=namecoin_coverage.out ./peer/impl/
+        run: GLOG=no go test -v -race -coverpkg=./peer/impl -coverprofile=namecoin_coverage.out ./peer/impl/
 
       - name: Run HW0 tests
-        run: GLOG=no go test -v -race -coverpkg=go.dedis.ch/cs438/peer/impl -coverprofile=hw0_coverage.out ./peer/tests/HW0/unit
+        run: GLOG=no go test -v -race -coverpkg=./peer/impl -coverprofile=hw0_coverage.out ./peer/tests/HW0/unit
 
       # Merge all coverage profiles into a single file
       - name: Merge Coverage Files
         run: |
-          echo "mode: set" > coverage.out
+          echo "mode: atomic" > coverage.out
           tail -n +2 namecoin_coverage.out >> coverage.out
           tail -n +2 hw0_coverage.out >> coverage.out
 
@@ -57,8 +57,25 @@ jobs:
       # Convert coverage.out to Cobertura XML
       - name: Convert coverage to Cobertura
         run: |
-          go install github.com/t-yuki/gocover-cobertura@latest
+          go install github.com/boumenot/gocover-cobertura@latest
           gocover-cobertura < coverage.out > coverage.xml
+
+      - name: Archive Cobertura xml
+        uses: actions/upload-artifact@v4
+        with:
+          name: cobertura
+          path: coverage.xml
+
+      # Adjust coverage.xml paths for CodeScene
+      - name: Adjust coverage paths for CodeScene
+        run: |
+          sed -i 's|go.dedis.ch/cs438|2024-proj-namecoin-group-33|g' coverage.xml
+
+      - name: Archive Cobertura xml processed
+        uses: actions/upload-artifact@v4
+        with:
+          name: cobertura-processed
+          path: coverage.xml
 
       # Upload Cobertura coverage data to CodeScene only when pushing to main
       - name: Upload coverage data to CodeScene
@@ -96,3 +113,4 @@ jobs:
         with:
           coverage-artifact-name: "code-coverage"
           coverage-file-name: "coverage.out"
+          root-package: "go.dedis.ch/cs438"
