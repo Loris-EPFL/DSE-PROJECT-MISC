@@ -123,9 +123,7 @@ func (n *node) Broadcast(msg transport.Message) error {
 	//increment seq number
 
 	currentSequenceNumber := n.sequenceNumber.getSequenceNumber()
-
 	n.sequenceNumber.updateSeqNumber(currentSequenceNumber + 1)
-
 	n.receivedSeq.Add(n.conf.Socket.GetAddress(), currentSequenceNumber+1)
 
 	//create a rumor of the message to broadcast
@@ -143,24 +141,26 @@ func (n *node) Broadcast(msg transport.Message) error {
 	n.storeRumor(rumor)
 	go n.broadCastRoutine(&rumorsMessage)
 
-	// // Processing the message locally
+	//	Don't process these messages locally, as it is already done by our logic
 
-	// // Creating the local header
-	// localHeader := transport.NewHeader(
-	//     n.conf.Socket.GetAddress(),
-	//     n.conf.Socket.GetAddress(),
-	//     n.conf.Socket.GetAddress(),
-	// )
+	// Processing the message locally
 
-	// //.. and the associated packet
-	// pkt := createTransportPacket(&localHeader, rumor.Msg)
+	// Creating the local header
+	localHeader := transport.NewHeader(
+	    n.conf.Socket.GetAddress(),
+	    n.conf.Socket.GetAddress(),
+	    n.conf.Socket.GetAddress(),
+	)
 
-	// process := n.conf.MessageRegistry.ProcessPacket(pkt)
+	//.. and the associated packet
+	pkt := createTransportPacket(&localHeader, rumor.Msg)
 
-	// if process != nil {
+	process := n.conf.MessageRegistry.ProcessPacket(pkt)
 
-	//     return process
-	// }
+	if process != nil {
+
+	    return process
+	}
 
 	return nil
 }

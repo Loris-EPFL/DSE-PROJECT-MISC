@@ -9,6 +9,7 @@ import (
 
 	"github.com/rs/zerolog"
 	"go.dedis.ch/cs438/storage"
+	"go.dedis.ch/cs438/transport"
 	"go.dedis.ch/cs438/types"
 	"golang.org/x/xerrors"
 )
@@ -302,4 +303,28 @@ func (n *node) incrementHeight() {
 	n.currentHeight.mu.Lock()
 	defer n.currentHeight.mu.Unlock()
 	n.currentHeight.currentHeight++
+}
+
+// broadcast without locally processing the message
+func (n *node) blockchainBroadcast(tx transport.Message) error {
+	currentSequenceNumber := n.sequenceNumber.getSequenceNumber()
+	n.sequenceNumber.updateSeqNumber(currentSequenceNumber + 1)
+	n.receivedSeq.Add(n.conf.Socket.GetAddress(), currentSequenceNumber+1)
+
+	//create a rumor of the message to broadcast
+	rumor := types.Rumor{
+		Origin:   n.conf.Socket.GetAddress(),
+		Sequence: n.sequenceNumber.seqNumber,
+		Msg:      &tx,
+	}
+
+	//embed the rumor in a rumor structure
+	rumorsMessage := types.RumorsMessage{
+		Rumors: []types.Rumor{rumor},
+	}
+
+	n.storeRumor(rumor)
+	go n.broadCastRoutine(&rumorsMessage)
+	return nil
+
 }
