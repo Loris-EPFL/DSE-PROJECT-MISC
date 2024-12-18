@@ -591,7 +591,7 @@ func (n *node) handleTransactionMessage(msg types.Message, pkt transport.Packet)
 		return xerrors.Errorf("Owner %s not found in token balance mapping", txMsg.Tx.Input.Owner)
 	}
 
-	if balanceOwner < uint64(txMsg.Tx.Fees) {
+	if balanceOwner < (txMsg.Tx.Fees) {
 		return xerrors.Errorf("Insufficient funds for transaction fees")
 	}
 
