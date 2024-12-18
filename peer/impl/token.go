@@ -9,10 +9,10 @@ import (
 
 // Token represents a simple token system.
 type Token struct {
-	Name        string                  // Name of the token, e.g., "NameCoin Token"
-	Shorthand   string                  // Shorthand of the token, e.g., "NCT"
-	TotalSupply uint64                  // Total number of tokens in existence (optional field?)
-	Balances    SafeMap[string, uint64] // Mapping from addresses to their token balances
+	Name        string                // Name of the token, e.g., "NameCoin Token"
+	Shorthand   string                // Shorthand of the token, e.g., "NCT"
+	TotalSupply uint                  // Total number of tokens in existence (optional field?)
+	Balances    SafeMap[string, uint] // Mapping from addresses to their token balances
 	mu          sync.Mutex
 }
 
@@ -30,24 +30,24 @@ func init() {
 }
 
 // NewToken initializes a new Token with the given name, symbol, and initial supply.
-func NewToken(name, symbol string, initialSupply uint64) *Token {
+func NewToken(name, symbol string, initialSupply uint) *Token {
 	return &Token{
 		Name:        name,
 		Shorthand:   symbol,
 		TotalSupply: initialSupply, // May not be needed if we only mint and burn anyway (set to 0).
-		Balances:    NewSafeMap[string, uint64](),
+		Balances:    NewSafeMap[string, uint](),
 	}
 }
 
 // AddAddress adds a new address with an optional initial balance.
 // If no balance is provided, it defaults to 0.
-func (t *Token) AddAddress(address string, initialBalance ...uint64) error {
+func (t *Token) AddAddress(address string, initialBalance ...uint) error {
 
 	if len(initialBalance) > 1 {
 		return fmt.Errorf("AddAddress: too many arguments for initialBalance")
 	}
 
-	var balance uint64 = 0
+	var balance uint = 0
 	if len(initialBalance) == 1 {
 		balance = initialBalance[0]
 	}
@@ -66,7 +66,7 @@ func (t *Token) AddAddress(address string, initialBalance ...uint64) error {
 }
 
 // Mint adds tokens to a specified address and increases the total supply.
-func (t *Token) Mint(address string, amount uint64) {
+func (t *Token) Mint(address string, amount uint) {
 	currentBalance, exists := t.Balances.Get(address)
 	if !exists {
 		// If address does not exist, add it with the minted amount
@@ -84,7 +84,7 @@ func (t *Token) Mint(address string, amount uint64) {
 }
 
 // Burn removes tokens from an address and decreases the total supply.
-func (t *Token) Burn(address string, amount uint64) error {
+func (t *Token) Burn(address string, amount uint) error {
 
 	currentBalance, exists := t.Balances.Get(address)
 	if !exists {
@@ -106,7 +106,7 @@ func (t *Token) Burn(address string, amount uint64) error {
 }
 
 // Transfer moves tokens from one address to another.
-func (t *Token) Transfer(from, to string, amount uint64) error {
+func (t *Token) Transfer(from, to string, amount uint) error {
 	fromBalance, exists := t.Balances.Get(from)
 	if !exists {
 		return fmt.Errorf("Transfer: address %s does not exist", from)
@@ -132,7 +132,7 @@ func (t *Token) Transfer(from, to string, amount uint64) error {
 }
 
 // GetBalance retrieves the token balance of a given address.
-func (t *Token) GetBalance(address string) uint64 {
+func (t *Token) GetBalance(address string) uint {
 	balance, exists := t.Balances.Get(address)
 	if !exists {
 		return 0

@@ -155,6 +155,14 @@ func (n *node) mineBlock(block *types.Block, stopMiningCh chan struct{}) (*types
 			block.Hash = hash
 			logger.Debug().Msgf("Hash: %x", hash)
 			if n.meetsTarget(hash, target) {
+				// If we found a valid block, reward the miner
+				previousBalance, ok := nct.Balances.Get(n.conf.Socket.GetAddress())
+				if !ok {
+					logger.Warn().Any("address", n.conf.Socket.GetAddress()).Msg("Failed to get balance")
+					previousBalance = 0 //In case we don't have the balance, we init it to 0
+				}
+				rewardPerBlockMined := uint(20)                                                   // Reward for mining a block
+				nct.Balances.Add(n.conf.Socket.GetAddress(), previousBalance+rewardPerBlockMined) // Reward the miner
 				return block, nil
 			}
 			challenge++

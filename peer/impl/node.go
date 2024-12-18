@@ -120,6 +120,8 @@ func NewPeer(conf peer.Configuration) peer.Peer {
 		logger.Error().Err(err).Msg("Failed to add new node's address to the NTC balance.")
 	}
 
+	nct.Balances.Add(conf.Socket.GetAddress(), 10) // Add 10 NTC to the new node's address, variable tbd
+
 	return n
 }
 

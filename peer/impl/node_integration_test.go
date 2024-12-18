@@ -24,12 +24,14 @@ func Test_Node_has_wallet(t *testing.T) {
 	// Address should exist in token balance mapping
 	assert.Len(t, nct.Balances.ToMap(), 1)
 	balance := nct.GetBalance(node1.GetAddr())
+
 	logger.Warn().Any("balance", balance).Msg("balance")
 	assert.Equal(t, balance, uint(10)) //Initial Balance
 
 	// After changes we still get expected value
 	nct.Mint(node1.GetAddr(), 200)
 	balance = nct.GetBalance(node1.GetAddr())
+
 	assert.Equal(t, balance, uint(210))
 	err := nct.Burn(node1.GetAddr(), 210)
 	require.NoError(t, err)
