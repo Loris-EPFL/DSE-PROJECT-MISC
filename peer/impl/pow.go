@@ -90,7 +90,7 @@ func (n *node) attemptToMine() {
 		}
 
 		// Broadcast the block
-		err = n.Broadcast(transpBlockMsg)
+		err = n.blockchainBroadcast(transpBlockMsg)
 		if err != nil {
 			logger.Error().Err(err).Msg("Failed to broadcast block")
 			return
